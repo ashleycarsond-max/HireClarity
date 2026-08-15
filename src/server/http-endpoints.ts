@@ -11,7 +11,7 @@
  * request is served and never reaches the router.
  *
  * Endpoints:
- *   POST /api/stripe/checkout   { tier: 'seeker'|'company', email?: string }
+ *   POST /api/stripe/checkout   { tier: 'seeker', email?: string }
  *       -> 200 { ok: true, url }                     (redirect the browser here)
  *       -> 503 { ok: false, error: 'billing not configured yet' }  (no keys)
  *       -> 400 { ok: false, error }                  (bad tier/email)
@@ -77,7 +77,7 @@ async function handleCheckout(request: Request): Promise<Response> {
   const b = body as { tier?: unknown; email?: unknown };
 
   if (!isTier(b.tier)) {
-    return json({ ok: false, error: "unknown tier — expected 'seeker' or 'company'" }, 400);
+    return json({ ok: false, error: "unknown tier — expected 'seeker' (the only product)" }, 400);
   }
   const tier: SubscriptionTier = b.tier;
 

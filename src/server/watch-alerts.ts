@@ -3,8 +3,8 @@
  * /api/cron/sync handler after each hourly sync chunk.
  *
  * Pipeline per candidate from evaluateWatchAlerts (engine/watchlist.ts):
- *   1. The recipient must STILL hold an active Job Seeker subscription
- *      (fail-closed via isSubscribed) — alerts are a paid-tier feature and we
+ *   1. The recipient must STILL hold an active HireClarity Data subscription
+ *      (fail-closed via isSubscribed) — alerts are a paid-product feature and we
  *      never email a lapsed/free account.
  *   2. Test/example addresses are never emailed (same guard as report-email).
  *   3. Send via Resend; only when Resend ACCEPTS the message do we record
@@ -50,7 +50,7 @@ export async function runWatchlistAlertPass(
       console.error("[watch-alerts] isSubscribed check failed:", err);
     }
     if (!subscribed) {
-      result.skipped.push({ masked, postingId: c.postingId, reason: "no active Job Seeker subscription" });
+      result.skipped.push({ masked, postingId: c.postingId, reason: "no active HireClarity Data subscription" });
       continue;
     }
     // 2. Never email test/example addresses.

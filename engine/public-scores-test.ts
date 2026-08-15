@@ -10,10 +10,11 @@
  *   2. The rendered company-page HTML (react-dom/server, no auth) contains
  *      "Confidence score", the per-signal "How this score was built" panel,
  *      and observed values; it does NOT contain benchmark/fix/health copy.
- *   3. /company + /company/report stay gated: SubscriptionGate renders the
- *      paywall (and hides children) when access is denied, and renders the
- *      tool when access is allowed.
- *   4. The $9 seeker price flows through checkout config (TIERS + ensurePrice
+ *   3. The single-tier gate (owner decision 2026-08-14): the ONE $9 product
+ *      (HireClarity Data) gates the paid tool — anonymous is denied with the
+ *      $9 paywall; the retired "company" tier is not a valid input and FAILS
+ *      CLOSED (no children, no $149 copy anywhere).
+ *   4. The $9 price flows through checkout config (TIERS + ensurePrice
  *      validation against live Stripe is verified by engine/stripe-price-tool;
  *      here we pin the config + cache wiring).
  *
@@ -91,9 +92,10 @@ async function cleanup(): Promise<void> {
   }
 }
 async function main() {
-  console.log("== 1. config: $9 seeker flows through checkout config ==");
-  check("TIERS.seeker.amountCents === 900", TIERS.seeker.amountCents === 900, `$${TIERS.seeker.amountCents / 100}`);
-  check("TIERS.company.amountCents === 14900", TIERS.company.amountCents === 14900);
+  console.log("== 1. config: single $9 product flows through checkout config ==");
+  check("TIERS.seeker.amountCents === 900", TIERS.seeker.amountCents === 900, `${TIERS.seeker.amountCents / 100}`);
+  check("TIERS has exactly ONE entry (single product)", Object.keys(TIERS).length === 1, Object.keys(TIERS).join(","));
+  check("TIERS has no company tier", !("company" in TIERS), "retired 2026-08-14");
   // Live Stripe wiring (cache validated against live mode + checkout line item)
   // is verified by engine/stripe-price-tool.ts; the config pin above is the
   // in-repo guard so a future price edit fails here.
@@ -139,33 +141,39 @@ async function main() {
     }
   }
 
-  console.log("\n== 4. /company + /company/report stay gated (SubscriptionGate) ==");
+  console.log("\n== 4. single-tier gate: $9 product; retired company tier fails closed ==");
   const deny: () => Promise<AccessResult> = async () => ({
     gated: true,
     allowed: false,
     reason: "nosub",
   });
   const allow: () => Promise<AccessResult> = async () => ({ gated: false, allowed: true, plan: "unlimited" });
-  const deniedHtml = renderToStaticMarkup(h(SubscriptionGate, { tier: "company", verify: deny, children: h("p", null, "PRIVATE_DASHBOARD_CONTENT") }));
-  check("denied: paywall heading 'Subscribe to continue'", deniedHtml.includes("Subscribe to continue"));
-  check("denied: mentions $149/month", deniedHtml.includes("$149/month"));
-  check("denied: private children NOT rendered", !deniedHtml.includes("PRIVATE_DASHBOARD_CONTENT"));
+  // The retired "company" tier is no longer a valid input: the gate must FAIL
+  // CLOSED — an honest "no longer available" panel, never the children, and
+  // never any $149 copy.
+  const retiredHtml = renderToStaticMarkup(h(SubscriptionGate, { tier: "company" as never, verify: deny, children: h("p", null, "PRIVATE_DASHBOARD_CONTENT") }));
+  check("retired company tier: renders the fail-closed panel", retiredHtml.includes("no longer available"));
+  check("retired company tier: no $149 anywhere", !retiredHtml.includes("$149"));
+  check("retired company tier: private children NOT rendered", !retiredHtml.includes("PRIVATE_DASHBOARD_CONTENT"));
+  // The ONE $9 product gate denies anonymous on the paid tool while public
+  // pages stay open.
+  const seekerDenied = renderToStaticMarkup(h(SubscriptionGate, { tier: "seeker", verify: deny, children: h("p", null, "UNLIMITED_TOOL") }));
+  check("seeker gate: paywall shown for anonymous", seekerDenied.includes("Sign in to check postings"));
+  check("seeker gate: $9/month quoted", seekerDenied.includes("$9/month"));
+  check("seeker gate: product named HireClarity Data", seekerDenied.includes("HireClarity Data"));
+  check("seeker gate: no $149 anywhere", !seekerDenied.includes("$149"));
+  check("seeker gate: tool hidden", !seekerDenied.includes("UNLIMITED_TOOL"));
   // SSR cannot resolve the async verify fn (the gate renders in "resolving"
   // phase under renderToStaticMarkup), so the allowed path is asserted as
   // render-safe here and verified live (signed-in) in the deploy QA.
   let allowedOk = false;
   try {
-    const allowedHtml = renderToStaticMarkup(h(SubscriptionGate, { tier: "company", verify: allow, children: h("p", null, "PRIVATE_DASHBOARD_CONTENT") }));
+    const allowedHtml = renderToStaticMarkup(h(SubscriptionGate, { tier: "seeker", verify: allow, children: h("p", null, "UNLIMITED_TOOL") }));
     allowedOk = allowedHtml.length > 0;
   } catch {
     allowedOk = false;
   }
   check("allowed: gate renders without throwing (SSR)", allowedOk);
-  // seeker gate denies anonymous on the paid tool while public pages stay open
-  const seekerDenied = renderToStaticMarkup(h(SubscriptionGate, { tier: "seeker", verify: deny, children: h("p", null, "UNLIMITED_TOOL") }));
-  check("seeker gate: paywall shown for anonymous", seekerDenied.includes("Sign in to check postings"));
-  check("seeker gate: $9/month quoted", seekerDenied.includes("$9/month"));
-  check("seeker gate: tool hidden", !seekerDenied.includes("UNLIMITED_TOOL"));
 
   await cleanup();
   console.log(fail === 0 ? `\nRESULT: PASS (${pass} checks)` : `\nRESULT: FAIL (${fail} failed of ${pass + fail})`);

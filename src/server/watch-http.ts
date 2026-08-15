@@ -12,7 +12,7 @@
  *       -> 200 { ok: true, watching: true }   watch created (idempotent)
  *       -> 401 { ok: false, error }           no session (anonymous)
  *       -> 403 { ok: false, error, code: "paywall" }  signed in, not a
- *              Job Seeker subscriber — the paywall message
+ *              HireClarity Data subscriber — the paywall message
  *       -> 404 { ok: false, error }           posting not in the tracking store
  *       -> 400 { ok: false, error }           malformed postingId
  *   POST /api/watch/remove   { postingId }   (session cookie required)
@@ -33,7 +33,7 @@
  * Gating guard (documented): identity ALWAYS comes from the httpOnly hc_session
  * cookie (currentUserEmail) or the email's own secret token — never from
  * client-supplied identity. Anonymous -> 401; signed-in free tier -> 403 with
- * the exact paywall copy ("Watchlists and alerts are part of Job Seeker —
+ * the exact paywall copy ("Watchlists and alerts are part of HireClarity Data —
  * $9/month"). Token mismatches are logged.
  */
 
@@ -52,7 +52,7 @@ function json(body: unknown, status = 200, extraHeaders: Record<string, string> 
 const POSTING_ID_RE = /^[A-Za-z0-9:_\-.]{1,200}$/;
 
 const PAYWALL = {
-  error: "Watchlists and alerts are part of Job Seeker — $9/month.",
+  error: "Watchlists and alerts are part of HireClarity Data — $9/month.",
   code: "paywall",
 };
 

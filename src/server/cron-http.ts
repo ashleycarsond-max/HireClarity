@@ -27,7 +27,6 @@ import { runRequirementsSlice } from "../../engine/requirements-sync";
 import { computeDailySnapshot, saveDailySnapshot, utcDateStr } from "../../engine/daily-stats";
 import { sendReportToSignups } from "./report-email";
 import { runWatchlistAlertPass } from "./watch-alerts";
-import { runQuarterlyCompanyReportPass } from "./company-report-email";
 import { timingSafeEqual } from "node:crypto";
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
@@ -61,7 +60,7 @@ async function handleSync(request: Request): Promise<Response> {
     // Watchlist alert pass: inside the SAME guarded handler, after the sync
     // chunk. It re-reads the store (correct regardless of which chunk processed
     // a watched posting) and sends honest per-change/staleness emails only to
-    // active Job Seeker subscribers — last_alert_at-guarded (see
+    // active subscribers — last_alert_at-guarded (see
     // engine/watchlist.ts + watch-alerts.ts).
     const watch = await runWatchlistAlertPass(new Store(), { now: new Date(report.at) });
     return json({
@@ -287,58 +286,33 @@ async function handleDailyCron(request: Request): Promise<Response> {
 }
 
 /**
- * GET /api/cron/company-report — the QUARTERLY company reputation report cron.
+ * GET /api/cron/company-report — REMOVED (owner decision 2026-08-14).
  *
- * Guards: same fail-closed CRON_SECRET auth as the other cron paths (Vercel
- * Cron sends `Authorization: Bearer <CRON_SECRET>` on every scheduled
- * invocation). GET-only, trailing-slash variants intercepted below.
- *
- * Behavior (Batch 3B, idempotent by design):
- *   For every ACTIVE company subscriber whose email uniquely matches a tracked
- *   registry company (documented rule in engine/company-report.ts
- *   matchCompanyForEmail), generate the current quarter's reputation report
- *   (replaces the stored (company, quarter) row — safe to re-run) and email it.
- *   Claims are per (company, quarter) in sync_meta: each company gets ONE email
- *   per quarter; a failed send leaves no claim so the next run retries; a
- *   sending lock prevents two racing invocations from double-sending.
+ * The Company product is retired (single $9 tier), so this cron no longer
+ * exists: its vercel.json entry is gone and this handler was deleted — the
+ * path falls through to the site router and returns 404. The shelved engine
+ * code (engine/company-report.ts, src/server/company-report-email.ts) stays in
+ * the repo for a future relaunch, unreferenced.
  */
-async function handleCompanyReportCron(request: Request): Promise<Response> {
-  if (!authorized(request)) {
-    return json({ ok: false, error: "unauthorized — expected Authorization: Bearer <CRON_SECRET>" }, 401);
-  }
-  if (!process.env.DATABASE_URL) {
-    return json({ ok: false, error: "DATABASE_URL is not set — the tracking store isn't configured" }, 503);
-  }
-  const started = Date.now();
-  try {
-    const pass = await runQuarterlyCompanyReportPass(new Store());
-    return json({
-      ok: true,
-      quarter: pass.quarter,
-      subscribers: pass.subscribers,
-      sent: pass.sent,
-      skipped: pass.skipped.map((s) => ({ masked: s.masked, company: s.company, reason: s.reason })),
-      failures: pass.failures.map((f) => ({ masked: f.masked, company: f.company, reason: f.reason })),
-      elapsedMs: Date.now() - started,
-    });
-  } catch (err) {
-    console.error("[cron] /api/cron/company-report failed:", err);
-    return json({ ok: false, error: "company-report generation failed — see function logs" }, 500);
-  }
-}
 
 /**
  * Route cron HTTP requests; returns null when the request is not ours and
  * should continue to the normal site handler.
  *
- * All cron paths (and their trailing-slash variants) are ALWAYS intercepted
- * here — they must never fall through to the site router, which would render
- * an HTML 404 page. Fail-closed is the only acceptable outcome:
+ * All ACTIVE cron paths (and their trailing-slash variants) are ALWAYS
+ * intercepted here — they must never fall through to the site router, which
+ * would render an HTML 404 page. Fail-closed is the only acceptable outcome:
  *   - not GET            -> 405 (Vercel Cron sends GET; nothing else may run it)
  *   - GET, no/wrong auth -> 401 (handlers below)
  *   - GET, correct auth  -> 200 + JSON summary
  * The Authorization check happens inside the handlers (timing-safe), AFTER the
  * pathname/method gates, so route interception does not depend on any header.
+ *
+ * NOTE (owner decision 2026-08-14): /api/cron/company-report was REMOVED — the
+ * Company product is retired (single $9 tier). Its vercel.json cron entry is
+ * gone and the handler below is deleted, so the path now falls through and
+ * returns the site's 404. The shelved engine code (engine/company-report.ts,
+ * src/server/company-report-email.ts) stays in the repo, unreferenced.
  */
 export async function handleCronHttp(request: Request): Promise<Response | null> {
   const { pathname } = new URL(request.url);
@@ -359,12 +333,6 @@ export async function handleCronHttp(request: Request): Promise<Response | null>
       return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
     }
     return handleDailyCron(request);
-  }
-  if (pathname === "/api/cron/company-report" || pathname === "/api/cron/company-report/") {
-    if (request.method !== "GET") {
-      return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
-    }
-    return handleCompanyReportCron(request);
   }
   return null;
 }

@@ -328,7 +328,7 @@ function Hero() {
           </div>
           <p className="mt-6 text-sm text-slate-400">
             Every posting we track has a public confidence score — no sign-in needed. Sign in for 5 free checks a
-            month, or go unlimited with Job Seeker, $9/month. No trial.
+            month, or go unlimited with HireClarity Data, $9/month. No trial.
           </p>
         </div>
         <div className="mx-auto w-full max-w-md lg:max-w-none">
@@ -862,32 +862,30 @@ function Pricing() {
       accent: false,
     },
     {
-      name: "Job Seeker",
-      tagline: "The individual job-score service.",
+      name: "Free",
+      tagline: "All published data is free and public.",
+      price: "$0",
+      cta: { kind: "link", href: "/companies", label: "Browse tracked companies" },
+      features: [
+        "Every posting's confidence score and history — public, no sign-in",
+        "5 posting checks a month with sign-in",
+        "No card, no trial",
+      ],
+      accent: false,
+    },
+    {
+      name: "HireClarity Data",
+      tagline: "One product for everyone — $9/month, same specs.",
       price: "$9",
       tier: "seeker" as Tier,
       cta: { kind: "checkout" },
       features: [
-        "Unlimited posting checks",
+        "Unlimited posting checks — paste any URL, get a confidence score and why",
         "Watchlists and alerts on stale, relisted, or vanished postings",
         "“Worth your time?” recommendation on every posting",
+        "For companies: see how candidates experience your listings and protect your reputation",
       ],
       accent: true,
-    },
-    {
-      name: "For companies",
-      tagline: "Your own data, private.",
-      price: "$149",
-      tier: "company" as Tier,
-      cta: { kind: "checkout" },
-      features: [
-        "Your posting-health scores and hiring trends, private to you",
-        "External job tracking + alerts on any listing with confidence below 80",
-        "Job posting clean-up (salary-conflict detection coming soon)",
-        "Competitor benchmarking against your industry",
-        "Confidential quarterly reports",
-      ],
-      accent: false,
     },
   ];
   return (
@@ -899,12 +897,14 @@ function Pricing() {
             Public data is free. The service is $9.
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-slate-600">
-            All published data is free and public — every posting's confidence score and history. Job Seeker
-            ($9/month) adds unlimited checks, watchlists and alerts. Company ($149/month) is your own private
-            analytics. No trial — cancel anytime, no questions asked.
+            All published data is free and public — every posting's confidence score and history.
+            HireClarity Data ($9/month, the same product for everyone) adds unlimited checks,
+            watchlists and alerts — for job seekers who don't want to waste time on ghost postings,
+            and for companies that want to see how candidates experience their listings. No trial —
+            cancel anytime, no questions asked.
           </p>
         </div>
-        <div className="mx-auto mt-12 grid max-w-5xl gap-6 md:grid-cols-3">
+        <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
           {plans.map((p) => (
             <div
               key={p.name}
@@ -942,7 +942,8 @@ function Pricing() {
           ))}
         </div>
         <p className="mt-10 text-center text-sm text-slate-500">
-          Prices are locked: Free is public data + 5 checks a month, Job Seeker is $9/month, Company is $149/month.
+          Prices are locked: Free is public data + 5 checks a month; HireClarity Data is $9/month for
+          everyone — unlimited checks, watchlists and alerts.
         </p>
       </div>
     </section>
@@ -968,7 +969,7 @@ function Faq() {
     },
     {
       q: "How much does HireClarity Data cost?",
-      a: "Free: all published data is free and public — every posting's confidence score and history — plus 5 checks a month with sign-in. Job Seeker: $9/month for unlimited checks, watchlists and alerts. Company: $149/month for your own private analytics. No trial.",
+      a: "Free: all published data is free and public — every posting's confidence score and history — plus 5 checks a month with sign-in. HireClarity Data: $9/month for everyone — unlimited checks, watchlists and alerts. No trial.",
     },
   ];
   return (
@@ -1130,7 +1131,7 @@ function EmailCapture() {
           <EmailForm />
         </div>
         <p className="mx-auto mt-6 max-w-xl text-center text-xs text-slate-500">
-          HireClarity Data is live — the check tool and company dashboard run on real tracking
+          HireClarity Data is live — the check tool runs on real tracking
           data. This list is for our public ghost-job reports.
         </p>
       </div>

@@ -1,13 +1,14 @@
 /**
- * WatchButton — "Watch this posting" toggle for Job Seeker subscribers.
+ * WatchButton — "Watch this posting" toggle for HireClarity Data subscribers.
  *
  * Shown on /check results and the First Look card. Server-side enforcement
  * lives in the /api/watch/* endpoints (identity from the httpOnly hc_session
- * cookie; POST /add and /remove require an active Job Seeker subscription).
- * The client only renders what the server says:
+ * cookie; POST /add and /remove require an active HireClarity Data
+ * subscription). The client only renders what the server says:
  *   - 200 from /api/watch/list  -> watching/not-watching toggle
  *   - 401 (anonymous) or 403 (free tier) -> the honest paywall variant
- *     ("Watchlists and alerts are part of Job Seeker — $9/month" + subscribe)
+ *     ("Watchlists and alerts are part of HireClarity Data — $9/month" +
+ *     subscribe)
  */
 import { useCallback, useEffect, useState } from "react";
 import { startCheckout } from "../lib/checkout";
@@ -91,7 +92,7 @@ export function WatchButton({ postingId, compact = false }: { postingId: string;
       <div className={`rounded-xl border border-indigo-200 bg-indigo-50 p-4 ${compact ? "" : "mt-6"}`}>
         <p className="text-sm font-semibold text-slate-800">Watch this posting</p>
         <p className="mt-1 text-xs leading-relaxed text-slate-600">
-          Watchlists and alerts are part of <strong>Job Seeker — $9/month</strong>. We'll email you the moment this
+          Watchlists and alerts are part of <strong>HireClarity Data — $9/month</strong>. We'll email you the moment this
           posting is taken down, relisted, or goes stale.
         </p>
         <button

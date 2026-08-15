@@ -55,10 +55,11 @@ if [ -n "${DATABASE_URL:-}" ]; then ENV_ARGS=(-e "DATABASE_URL=$DATABASE_URL"); 
 # Billing env (owner-provided secrets + the access-gate flag). Only vars that
 # are actually set are passed, so an unconfigured deploy stays honest.
 # Owner decision (2026-08-13/14): the subscription gate is ON — anonymous
-# visitors to /check and /company see the honest subscribe panel; signed-in
-# accounts get the free tier (5 posting checks/month), Job Seeker $25 unlocks
-# unlimited checks, Company $149 unlocks the dashboard. EARLY_ACCESS_FREE
-# defaults to 0 so every deploy keeps the gate; unset it explicitly
+# visitors to /check see the honest subscribe panel; signed-in accounts get
+# the free tier (5 posting checks/month); HireClarity Data ($9/month) unlocks
+# unlimited checks, watchlists and alerts — one product for everyone (the
+# $149 Company tier was retired 2026-08-14). EARLY_ACCESS_FREE defaults to 0
+# so every deploy keeps the gate; unset it explicitly
 # (export EARLY_ACCESS_FREE=1) to open the tools to everyone (dev only).
 if [ -z "${EARLY_ACCESS_FREE:-}" ]; then EARLY_ACCESS_FREE=0; fi
 # Auth env: RESEND_API_KEY enables magic-link email delivery; EMAIL_FROM

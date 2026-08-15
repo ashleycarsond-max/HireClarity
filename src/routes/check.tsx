@@ -12,6 +12,7 @@ import { Store } from "../../engine/store";
 import { buildFirstLook } from "../../engine/firstlook";
 import type { FirstLook } from "../../engine/firstlook";
 import { derivePostingId, normalizeUrl } from "../../engine/urls";
+import { companySlugFor } from "../lib/slugs";
 import { SubscriptionGate } from "../components/SubscriptionGate";
 import type { AccessResult } from "../components/SubscriptionGate";
 import { CoverageNote } from "../components/CoverageNote";
@@ -86,19 +87,21 @@ export const Route = createFileRoute("/check")({
  * to everyone. When off, resolution order (identity ALWAYS from the hc_session
  * cookie — httpOnly, the client can't fake it):
  *   no session                  → gated: sign in
- *   active Job Seeker sub       → open, unlimited
- *   session, no sub (free tier) → open while checks_used < 5 this month
+ *   active subscription         → open, unlimited
+ *   session, no subscription    → open while checks_used < 5 this month
  *                                 (plan "free", checksRemaining included);
  *                                 at the limit → gated with reason "limit"
- * The limit is ALSO enforced inside checkPosting, so it can't be bypassed
- * client-side. See billing-README.md "Auth" and src/server/usage.ts.
+ * There is ONE product (HireClarity Data, $9/month — owner decision
+ * 2026-08-14); the retired "company" tier is not a valid input and fails
+ * closed. The limit is ALSO enforced inside checkPosting, so it can't be
+ * bypassed client-side. See billing-README.md "Auth" and src/server/usage.ts.
  */
 const verifyAccess = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { tier: string })
   .handler(async ({ data }): Promise<AccessResult> => {
     if (earlyAccessFree()) return { gated: false, allowed: true };
     const tier = data?.tier;
-    if (tier !== "seeker" && tier !== "company") {
+    if (tier !== "seeker") {
       return { gated: true, allowed: false, reason: "unknown-tier", error: "Unknown subscription tier." };
     }
     // Session-first identity: resolved from the request cookie, never from
@@ -112,13 +115,7 @@ const verifyAccess = createServerFn({ method: "POST" })
     if (!sessionEmail) {
       return { gated: true, allowed: false, reason: "signin", error: "Sign in to continue." };
     }
-    if (tier === "company") {
-      // Unchanged: only an active Company subscription unlocks the dashboard —
-      // the free tier does NOT unlock /company.
-      const allowed = await isSubscribed("company", sessionEmail); // fail-closed on DB errors
-      return { gated: true, allowed, reason: "nosub" };
-    }
-    // tier === "seeker": subscriber → unlimited; otherwise the free tier.
+    // Subscriber → unlimited; otherwise the free tier.
     const subscribed = await isSubscribed("seeker", sessionEmail);
     if (subscribed) return { gated: false, allowed: true, plan: "unlimited" };
     const used = await getChecksUsed(sessionEmail); // throws → gate fails closed
@@ -438,10 +435,10 @@ function ResultCard({ score, firstLook, checkedAt }: { score: PostingScore; firs
             </div>
             <p className="mt-3">
               <a
-                href={`/company?name=${encodeURIComponent(score.company.name)}`}
+                href={`/companies/${companySlugFor(score.company.name)}`}
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 transition-colors hover:text-indigo-800"
               >
-                View {score.company.name}'s posting-health dashboard
+                View {score.company.name}'s public posting history
                 <Icon name="arrowRight" className="h-4 w-4" />
               </a>
             </p>
@@ -545,8 +542,8 @@ function LimitPanel() {
     <div role="alert" className="mt-6 rounded-2xl border border-indigo-200 bg-indigo-50 px-6 py-5">
       <p className="text-base font-bold text-slate-900">You've used your 5 free checks this month</p>
       <p className="mt-1 text-sm leading-relaxed text-slate-600">
-        Subscribe to Job Seeker for unlimited posting and company checks, watchlists, alerts and
-        unlimited checks, watchlists and "worth your time?" recommendations — $9/month, no trial.
+        Subscribe to HireClarity Data for unlimited checks, watchlists, alerts and
+        "worth your time?" recommendations — $9/month, no trial.
       </p>
       <button
         type="button"

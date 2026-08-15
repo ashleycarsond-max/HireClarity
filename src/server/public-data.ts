@@ -10,7 +10,8 @@
  *
  * What STAYS PRIVATE (never returned here): company-level posting-health
  * scores, benchmarks, fix recommendations, hiring trends, and quarterly
- * reports — those are the Company ($149) product in engine/company.ts.
+ * reports — those were the retired Company product in engine/company.ts, which
+ * is SHELVED (owner decision 2026-08-14) and must never surface here.
  */
 import type { Store } from "../../engine/store";
 import { SEED_COMPANIES } from "../../engine/companies";

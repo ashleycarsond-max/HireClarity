@@ -486,7 +486,8 @@ function ReportPage() {
               </li>
               <li>
                 Companies appear only as a count ({p.distinctCompanies} distinct companies in this sample).
-                Individual company reports stay private behind the Company subscription.
+                Everything we track per company is public on its company page — there's no separate private
+                company product right now.
               </li>
               <li>
                 This snapshot was generated {fmtDay(s.generatedAt)}. During our first 6 months (daily until{" "}
