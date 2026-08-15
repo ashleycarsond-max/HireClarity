@@ -23,6 +23,16 @@ VERCEL="bunx vercel@latest"
 # .cron-secret file next to this script when not already exported, so every
 # deploy carries the same secret the scheduled cron jobs rely on. The file is
 # team-private (chmod 600); never echo its contents.
+#
+# NOTE (2026-08-15, cron pipeline fix): deploy-time `-e` is NOT enough for cron
+# auth — Vercel's Cron service attaches `Authorization: Bearer <CRON_SECRET>`
+# only when CRON_SECRET is a PROJECT-LEVEL env var (Settings → Environment
+# Variables, target Production). It must be set on the project once
+# (`echo "$CRON_SECRET" | vercel env add CRON_SECRET production` or the
+# dashboard). The `-e` pass below is harmless overlap (deploy env wins for the
+# function runtime) but the scheduler reads the project env. Also: crons are
+# registered from .vercel/output/config.json (see build-vercel.sh), not from
+# vercel.json, for --prebuilt deploys — verify with `vercel crons ls`.
 if [ -z "${CRON_SECRET:-}" ] && [ -f "$(dirname "$0")/.cron-secret" ]; then
   export CRON_SECRET="$(tr -d '\r\n' < "$(dirname "$0")/.cron-secret")"
 fi

@@ -109,7 +109,9 @@ export function CompanyDetailView({ detail }: { detail: PublicCompanyDetail }) {
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-500">
           Observed sample — we report what we actually see. {detail.tracked} tracked postings ({detail.live} currently
           listed) on {detail.boards.length > 0 ? detail.boards.join(", ") : "ATS-hosted boards"}; durations and relist
-          counts are what our tracking observed, not a market claim.
+          counts are what our tracking observed, not a market claim. Most postings don't show a
+          confidence score yet: tracking only started recently, and a score needs history. Every tracked
+          posting is re-checked every few hours, so scores populate as that history builds.
         </p>
         {detail.careerUrl && (
           <p className="mt-2 text-sm">
@@ -181,7 +183,9 @@ export function CompanyDetailView({ detail }: { detail: PublicCompanyDetail }) {
                 <ScoreBreakdown components={p.components} insufficientData={p.insufficientData} compact />
               ) : (
                 <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
-                  We couldn&apos;t compute a confidence score for this posting — n/a, not a judgment.
+                  We couldn&apos;t compute a confidence score for this posting — n/a, not a judgment. Scores
+                  need history, and tracking is new: every tracked posting is re-checked every few hours,
+                  so this posting&apos;s score will populate as its history builds.
                 </p>
               )}
             </article>
