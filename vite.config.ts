@@ -1,8 +1,48 @@
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
+import { readFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
+
+/**
+ * Platform-host env mirror (dev/build only).
+ *
+ * The platform serve process launches `bun run dev` (vite) with a scrubbed env
+ * that excludes business secrets (DATABASE_URL, Stripe keys, Resend, ...), even
+ * though interactive shells receive them via /etc/profile.d. The same secrets
+ * are mirrored into a gitignored `.env` in the site dir; merge them into
+ * process.env here so every `process.env.*` read in server code (engine/store.ts,
+ * src/server/signup.ts, subscriptions.ts, auth.ts, ...) sees them on the
+ * platform host. Real env vars always win (`??=`), and on Vercel there is no
+ * `.env` (gitignored, never shipped) and the platform env is already set, so
+ * this is a no-op in the Vercel build. `bun run start` (serve.ts) additionally
+ * auto-loads `.env` via Bun, so the production serve path is covered too.
+ */
+function loadLocalEnv() {
+  for (const file of [".env", ".env.local"]) {
+    const path = resolve(import.meta.dirname, file);
+    if (!existsSync(path)) continue;
+    for (const rawLine of readFileSync(path, "utf8").split("\n")) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq <= 0) continue;
+      const key = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if (
+        value.length >= 2 &&
+        ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'")))
+      ) {
+        value = value.slice(1, -1);
+      }
+      if (process.env[key] === undefined) process.env[key] = value;
+    }
+  }
+}
+loadLocalEnv();
 
 export default defineConfig({
   server: {
