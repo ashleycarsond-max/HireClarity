@@ -118,7 +118,7 @@ echo "LIVE: $LIVE_URL"
 echo "==> re-pointing the hireclarity-data.vercel.app alias"
 if [ -n "${VERCEL_TOKEN:-}" ]; then
   ALIAS_HOST="$(printf '%s' "$LIVE_URL" | sed -E 's#^https?://##')"
-  if ! "$VERCEL" alias set "$ALIAS_HOST" hireclarity-data.vercel.app \
+  if ! $VERCEL alias set "$ALIAS_HOST" hireclarity-data.vercel.app \
     --token "$VERCEL_TOKEN" --scope hire-clarity-data 2>&1; then
     echo "warning: alias re-point FAILED — site is live at $LIVE_URL but hireclarity-data.vercel.app still points at the previous deployment" >&2
     echo "  run manually: bunx vercel alias set $ALIAS_HOST hireclarity-data.vercel.app --token \$VERCEL_TOKEN --scope hire-clarity-data" >&2
