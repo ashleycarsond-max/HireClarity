@@ -479,8 +479,9 @@ function FirstLookCard({ firstLook, postingId }: { firstLook: FirstLook; posting
         <span className="font-semibold text-slate-800">What happens next:</span>{" "}
         A confident score needs time — we look for take-down/relist cycles and listing age. We need at
         least 3 observations over at least 3 days before the score can move off neutral, and a genuinely confident
-        read takes about 2 weeks. Check back then, or subscribe to watch this posting and get alerted the moment it
-        changes.
+        read takes about 2 weeks. In the meantime, every tracked posting is re-checked every few hours, so this
+        posting's history — and its score — builds automatically as we watch. Check back then, or subscribe to
+        watch this posting and get alerted the moment it changes.
       </div>
       <div className="mt-4">
         <WatchButton postingId={postingId} compact />
@@ -736,8 +737,9 @@ function CheckTool() {
                 <Icon name="info" className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
                 <span>
                   <strong className="text-slate-900">The history grows with time.</strong> A posting checked today for
-                  the first time has no history yet — that's why the honest answer can be "not enough data". Watch it
-                  and the score gets sharper.
+                  the first time has no history yet — that's why the honest answer can be "not enough data". We
+                  re-check every tracked posting every few hours, so its history — and its score — builds
+                  automatically as we watch.
                 </span>
               </li>
             </ul>
