@@ -22,6 +22,7 @@
 
 import { Store } from "../../engine/store";
 import { runSyncChunk } from "../../engine/sync";
+import { runDiscoverySlice } from "../../engine/discovery-sync";
 import { DAILY_REPORT_UNTIL, computeReportSnapshot, currentPeriod, reportRefreshDecision, saveReportSnapshot } from "../../engine/report";
 import { runRequirementsSlice } from "../../engine/requirements-sync";
 import { computeDailySnapshot, saveDailySnapshot, utcDateStr } from "../../engine/daily-stats";
@@ -296,6 +297,78 @@ async function handleDailyCron(request: Request): Promise<Response> {
  */
 
 /**
+ * GET /api/cron/discover — the registry-growth cron (owner direction
+ * 2026-08-15; design §4.2/§4.3/§4.6).
+ *
+ * Guards: same fail-closed CRON_SECRET auth as the other cron paths (Vercel
+ * Cron sends `Authorization: Bearer <CRON_SECRET>` on every scheduled
+ * invocation). GET-only, trailing-slash variants intercepted below.
+ *
+ * Schedule: 01:45 UTC daily — just before the 02:30 daily snapshot, so a
+ * company verified at 01:45 can be picked up by the 02:00 hourly sync (or at
+ * worst appears in the NEXT day's snapshot — honest and fine). A separate
+ * invocation so discovery can never eat the hourly sync's time or the
+ * daily/requirements budget.
+ *
+ * Behavior (idempotent by design):
+ *   1. Atomic claim `discovery_day_<utcDate>` (tryCreateMeta) — a duplicate
+ *      invocation on the same day no-ops (Vercel cron delivery is best-effort
+ *      and may double-fire).
+ *   2. runDiscoverySlice: a bounded slice of due candidates from the Neon
+ *      pool (DISCOVERY_PER_RUN default 8, DISCOVERY_HOST_CAP default 3,
+ *      DISCOVERY_TIME_BUDGET_MS default 30 s), verified live through the same
+ *      politeness layer as the sync; only `verified` rows join the registry.
+ *   3. Persists the run summary under `discovery_summary_<utcDate>` in
+ *      sync_meta (the /data page and monthly report can consume registry
+ *      growth KPI: pool summary + newlyVerifiedSince).
+ *   4. Returns the JSON summary — the scheduled honest per-run report
+ *      (byReason counts, newly verified, failures by reason).
+ */
+async function handleDiscoveryCron(request: Request): Promise<Response> {
+  if (!authorized(request)) {
+    return json({ ok: false, error: "unauthorized — expected Authorization: Bearer <CRON_SECRET>" }, 401);
+  }
+  if (!process.env.DATABASE_URL) {
+    return json({ ok: false, error: "DATABASE_URL is not set — the tracking store isn't configured" }, 503);
+  }
+  const started = Date.now();
+  const store = new Store();
+  try {
+    const date = utcDateStr();
+    const claimed = await store.tryCreateMeta(`discovery_day_${date}`, new Date().toISOString());
+    if (!claimed) {
+      return json({
+        ok: true,
+        at: new Date().toISOString(),
+        claim: "already-claimed",
+        note: `discovery already ran for ${date} — duplicate invocation no-op`,
+        elapsedMs: Date.now() - started,
+      });
+    }
+    const r = await runDiscoverySlice(store, {});
+    const summary = {
+      at: r.at,
+      picked: r.picked,
+      processed: r.processed,
+      skippedBudget: r.skippedBudget,
+      byReason: r.byReason,
+      newlyVerified: r.newlyVerified,
+      poolSize: r.poolSize,
+      elapsedMs: r.elapsedMs,
+    };
+    try {
+      await store.tryCreateMeta(`discovery_summary_${date}`, JSON.stringify(summary));
+    } catch (err) {
+      console.error("[cron] discovery summary persist failed (non-fatal):", err);
+    }
+    return json({ ok: true, at: r.at, claim: "claimed", date, ...summary });
+  } catch (err) {
+    console.error("[cron] /api/cron/discover failed:", err);
+    return json({ ok: false, error: "discovery failed — see function logs" }, 500);
+  }
+}
+
+/**
  * Route cron HTTP requests; returns null when the request is not ours and
  * should continue to the normal site handler.
  *
@@ -333,6 +406,12 @@ export async function handleCronHttp(request: Request): Promise<Response | null>
       return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
     }
     return handleDailyCron(request);
+  }
+  if (pathname === "/api/cron/discover" || pathname === "/api/cron/discover/") {
+    if (request.method !== "GET") {
+      return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
+    }
+    return handleDiscoveryCron(request);
   }
   return null;
 }

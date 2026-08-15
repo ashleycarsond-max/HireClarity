@@ -9,9 +9,12 @@
  * honest failure report (http-404 / http-429 / robots-blocked / parse-error)
  * and are never seeded.
  *
- * Workable is deliberately absent: apply.workable.com serves a bot challenge
- * (HTTP 429 even for /robots.txt, verified 2026-08-14), so no Workable account
- * can be verified today.
+ * Workable is deliberately absent (re-verified live 2026-08-15): the widget
+ * API returns clean HTTP 404s for unknown accounts and no bot challenge
+ * reproduces, but no REAL Workable account has been obtained/verified yet —
+ * so no Workable row exists for discovery to probe. A real subdomain (from a
+ * user check of an apply.workable.com URL, or a curated add) would flow
+ * through the normal verify path (the fetcher is implemented and tested).
  */
 
 import type { BoardKind } from "./boards";

@@ -10,8 +10,9 @@
  *      or `Name,board,id`, `#` comments allowed). Deduped by (board, boardId).
  *   2. Every candidate is verified LIVE through the SAME politeness layer as
  *      the sync loop (robots.txt check + per-host throttle, boards.ts
- *      fetchBoard — no bypass, no hammering). Workable is excluded (bot
- *      challenge).
+ *      fetchBoard — no bypass, no hammering). Workable is excluded (no real
+ *      account in the candidate lists; the API 404s for unknown subdomains —
+ *      see boards.ts, re-verified 2026-08-15).
  *   3. Each result is classified HONESTLY:
  *        verified       — HTTP 200 + at least one job
  *        empty          — HTTP 200 + zero jobs
@@ -68,7 +69,15 @@ const STATE_FILE = `${DATA_DIR}/discovery-state.json`;
 const VERIFIED_FILE = `${HERE}verified-companies.ts`;
 const SHARED_CANDIDATES_FILE = "/home/team/shared/ats-candidates.md";
 
-function classify(status: number | null, note: string | null, ok: boolean, jobs: number, parseOk: boolean): DiscoveryReason {
+/**
+ * Classify one board-list fetch into the honest 9-way reason set. Exported
+ * for the scheduled discovery pass (engine/discovery-sync.ts) so the daily
+ * cron and the offline bootstrap tool share ONE classification — no
+ * duplication, identical honesty rules. `parseOk` mirrors what the fetch
+ * note implies ("could not parse ..."), but callers pass it explicitly so
+ * the mock-board test path stays faithful.
+ */
+export function classify(status: number | null, note: string | null, ok: boolean, jobs: number, parseOk: boolean): DiscoveryReason {
   if (!ok) {
     if (note?.startsWith("blocked by robots.txt")) return "robots-blocked";
     if (note?.startsWith("could not parse")) return "parse-error";

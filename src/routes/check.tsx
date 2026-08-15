@@ -160,6 +160,17 @@ async function runCheckPipeline(raw: string): Promise<CheckResult> {
     }
     const record = await store.getByPostingId(observed.postingId);
     if (!record) return { ok: false, error: "Something went wrong reading that posting — try again." };
+    // Explicit user-check auto-discovery (owner direction 2026-08-15): every
+    // successful check of a supported board URL adds a `pending` candidate
+    // (source 'user-check') to the Neon discovery pool, so the next daily
+    // 01:45 UTC discovery pass can verify the company live and grow the
+    // registry. ON CONFLICT DO NOTHING + denylist-guarded; non-fatal — a pool
+    // write failure must never fail the check itself.
+    try {
+      await store.ensureDiscoveryCandidateFromPosting(record);
+    } catch (err) {
+      console.error("[check] discovery candidate insert failed (non-fatal):", err);
+    }
     const signals = await buildSignals(store, record);
     const score = await scorePosting(store, signals);
     const firstLook = await buildFirstLook(store, record, observed);

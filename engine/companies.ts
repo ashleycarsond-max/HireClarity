@@ -34,11 +34,26 @@
  * the new companies up automatically. Full per-candidate hit/failure reports
  * land in engine/data/discovery-report-*.txt.
  *
- * WORKABLE STATUS (verified 2026-08-14): apply.workable.com serves a bot
- * challenge (HTTP 429, even for /robots.txt), so no Workable account can be
- * verified or seeded today. The client exists in boards.ts and returns the 429
- * as a structured error; auto-discovery still registers Workable companies
- * from user-tracked URLs, and each sync reports the per-board failure honestly.
+ * SCHEDULED GROWTH (owner direction 2026-08-15, design: registry-growth-design.md):
+ * buildRegistry merges THREE sources, deduped by normalized name:
+ *   1. SEED_COMPANIES (the verified-live seed list above),
+ *   2. `discovery_candidates WHERE status='verified'` (the Neon pool —
+ *      seeded by `bun run seed-candidates`, fed continuously by user checks
+ *      and verified daily by the 01:45 UTC `/api/cron/discover` pass), and
+ *   3. every company derivable from postings already in the store.
+ * The Neon pool is the single source of truth for growth; the TS seed list
+ * remains the bootstrap for a fresh DB. Test-fixture names/boardIds
+ * (TestCo/acme) are denylisted so test artifacts can never enter the
+ * registry (see TEST_ARTIFACT below).
+ *
+ * WORKABLE STATUS (re-verified live 2026-08-15): apply.workable.com's
+ * robots.txt fetches fine (no rules → allowed) and the widget API returns
+ * clean HTTP 404s for unknown accounts — NO bot challenge reproduced on 10
+ * probed subdomains. Workable still has 0 accounts in the registry for an
+ * honest reason: no candidate, seed, or user check has ever produced a real
+ * Workable board ref, so nothing probes a valid account. The client exists in
+ * boards.ts and would work if a real subdomain were registered; until then,
+ * Workable boards report 0 accounts and are labeled as our observed sample.
  */
 
 import type { Store } from "./store";
@@ -145,6 +160,34 @@ function isLoopbackUrl(url: string): boolean {
 }
 
 /**
+ * TEST-ARTIFACT DENYLIST (design §4.4) — test suites (watchlist-test.ts and
+ * friends) write real-shaped fixture postings into the LIVE Neon store
+ * (company "TestCo", URLs under boards.greenhouse.io/acme/jobs/fx-…). Without
+ * a guard those fixtures auto-discover a phantom registry company that 404s
+ * on every sync cycle (the live "TestCo" phantom, purged 2026-08-15). Applied
+ * in buildRegistry (postings-derived merge) AND in
+ * Store.ensureDiscoveryCandidateFromPosting (/check hook), so fixtures can
+ * never re-enter the registry or the discovery pool. Long-term fix (noted):
+ * run fixture-writing tests against a scratch Neon database.
+ */
+export const TEST_ARTIFACT = {
+  /** Fixture company names ("TestCo", "SyncTestCo", ...). */
+  companyRe: /test/i,
+  /** Fixture board ids used by the watchlist/sync fixture postings. */
+  boardIds: new Set(["acme"]),
+} as const;
+
+/** True when a company name looks like a test-fixture name. */
+export function isTestArtifactName(name: string): boolean {
+  return TEST_ARTIFACT.companyRe.test(name.trim());
+}
+
+/** True when a board id is a known test-fixture board. */
+export function isTestArtifactBoardId(boardId: string): boolean {
+  return TEST_ARTIFACT.boardIds.has(boardId.trim().toLowerCase());
+}
+
+/**
  * Derive the board + boardId a posting URL belongs to, when it is hosted on a
  * board we can scrub. Returns null for non-board URLs (incl. loopback fixtures).
  *
@@ -176,13 +219,43 @@ export function boardRefFromUrl(url: string): CompanyBoardRef | null {
  * companies are upserted/deduped by normalized name; a company found on a
  * second board gets the extra board appended. Pure function of the store —
  * nothing is persisted (the scheduling layer can persist later if needed).
+ *
+ * SCHEDULED GROWTH MERGE (owner direction 2026-08-15): verified rows from the
+ * Neon discovery_candidates pool join the merge (source of truth for growth —
+ * a company verified by the daily 01:45 UTC discovery pass joins the registry
+ * here with its verifiedAt, ahead of its first board sync). Test-artifact
+ * fixture names/boardIds are excluded (see TEST_ARTIFACT). Deterministic
+ * (sorted) so the sync cursor stays stable across deploys.
  */
 export async function buildRegistry(store: Store, records?: PostingRecord[]): Promise<MonitoredCompany[]> {
   const byKey = new Map<string, MonitoredCompany>();
   const normKey = (name: string) => name.trim().toLowerCase();
+  const add = (c: MonitoredCompany) => {
+    const key = normKey(c.name);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, { ...c, boards: [...c.boards] });
+      return;
+    }
+    for (const b of c.boards) {
+      if (!existing.boards.some((x) => x.board === b.board && x.boardId === b.boardId)) {
+        existing.boards.push(b);
+      }
+    }
+    if (c.careerUrl && !existing.careerUrl) existing.careerUrl = c.careerUrl;
+    if (c.verifiedAt && !existing.verifiedAt) existing.verifiedAt = c.verifiedAt;
+  };
 
-  for (const c of SEED_COMPANIES) {
-    byKey.set(normKey(c.name), { ...c, boards: [...c.boards] });
+  for (const c of SEED_COMPANIES) add(c);
+
+  for (const c of await store.listVerifiedDiscoveryCandidates()) {
+    if (isTestArtifactName(c.name) || isTestArtifactBoardId(c.boardId)) continue;
+    add({
+      name: c.name,
+      boards: [{ board: c.board, boardId: c.boardId }],
+      ...(c.careerUrl ? { careerUrl: c.careerUrl } : {}),
+      ...(c.verifiedAt ? { verifiedAt: c.verifiedAt } : {}),
+    });
   }
 
   for (const r of records ?? (await store.getAll())) {
@@ -190,15 +263,8 @@ export async function buildRegistry(store: Store, records?: PostingRecord[]): Pr
     const ref = boardRefFromUrl(r.canonicalUrl);
     if (!ref) continue;
     const name = r.company?.trim() || ref.boardId;
-    const key = normKey(name);
-    const existing = byKey.get(key);
-    if (existing) {
-      if (!existing.boards.some((b) => b.board === ref.board && b.boardId === ref.boardId)) {
-        existing.boards.push(ref);
-      }
-    } else {
-      byKey.set(key, { name, boards: [ref] });
-    }
+    if (isTestArtifactName(name) || isTestArtifactBoardId(ref.boardId)) continue;
+    add({ name, boards: [ref] });
   }
 
   return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
