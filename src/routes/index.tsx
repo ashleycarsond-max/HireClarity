@@ -862,18 +862,6 @@ function Pricing() {
       accent: false,
     },
     {
-      name: "Free",
-      tagline: "All published data is free and public.",
-      price: "$0",
-      cta: { kind: "link", href: "/companies", label: "Browse tracked companies" },
-      features: [
-        "Every posting's confidence score and history — public, no sign-in",
-        "5 posting checks a month with sign-in",
-        "No card, no trial",
-      ],
-      accent: false,
-    },
-    {
       name: "HireClarity Data",
       tagline: "One product for everyone — $9/month, same specs.",
       price: "$9",
