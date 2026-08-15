@@ -150,7 +150,9 @@ export async function companyDetail(store: Store, name: string): Promise<PublicC
     list.push(e);
     eventsByPosting.set(e.postingId, list);
   }
-  const ctx: SignalContext = { identityGroups, eventsByPosting };
+  const payByPosting = new Map<string, import("../../engine/types").PayInfo>();
+  for (const p of await store.allPay()) payByPosting.set(p.postingId, p);
+  const ctx: SignalContext = { identityGroups, eventsByPosting, payByPosting };
   const checkCounts = new Map((await store.checksByPosting()).map((c) => [c.postingId, c.count]));
   const postings: PublicPostingRow[] = (
     await Promise.all(

@@ -110,6 +110,7 @@ export function ScoreBreakdown({
       </summary>
       <div className="mt-4 space-y-3">
         {components.map((c) => {
+          const isCredit = c.points < 0; // negative points = green credit (raises confidence)
           const neutral = insufficientData || c.points === 0;
           return (
             <div key={c.signalId} className="rounded-lg border border-slate-200 bg-white px-4 py-3">
@@ -120,13 +121,17 @@ export function ScoreBreakdown({
                 </div>
                 {c.maxPoints > 0 ? (
                   <div className="shrink-0 text-right">
-                    <p className={`text-sm font-bold ${neutral ? "text-slate-500" : "text-rose-600"}`}>
-                      {c.points > 0 ? `−${c.points} of ${c.maxPoints}` : `0 of ${c.maxPoints}`}
+                    <p className={`text-sm font-bold ${isCredit ? "text-emerald-600" : neutral ? "text-slate-500" : "text-rose-600"}`}>
+                      {isCredit
+                        ? `+${-c.points} credit of ${c.maxPoints}`
+                        : c.points > 0
+                          ? `−${c.points} of ${c.maxPoints}`
+                          : `0 of ${c.maxPoints}`}
                     </p>
                     <div className="ml-auto mt-1 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className={`h-full rounded-full ${neutral ? "bg-slate-300" : "bg-rose-400"}`}
-                        style={{ width: `${Math.min(100, (c.points / c.maxPoints) * 100)}%` }}
+                        className={`h-full rounded-full ${isCredit ? "bg-emerald-400" : neutral ? "bg-slate-300" : "bg-rose-400"}`}
+                        style={{ width: `${Math.min(100, (Math.abs(c.points) / c.maxPoints) * 100)}%` }}
                       />
                     </div>
                   </div>

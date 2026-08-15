@@ -20,7 +20,7 @@
  */
 
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
-import type { CheckRecord, PostingEvent, PostingRecord, PostingRequirement } from "./types";
+import type { CheckRecord, PayInfo, PostingEvent, PostingRecord, PostingRequirement } from "./types";
 
 /**
  * 64-hex-char random token without a node: import — engine/store.ts is shared
@@ -101,6 +101,19 @@ const SCHEMA_STATEMENTS: string[] = [
     fetch_error           TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS idx_post_req_extracted ON posting_requirements(extracted_at)`,
+  `CREATE TABLE IF NOT EXISTS posting_pay (
+    posting_id   TEXT PRIMARY KEY,
+    has_pay      BOOLEAN NOT NULL DEFAULT FALSE,
+    pay_min      DOUBLE PRECISION,
+    pay_max      DOUBLE PRECISION,
+    currency     TEXT,
+    period       TEXT,
+    pay_text     TEXT,
+    source       TEXT,
+    fetch_error  TEXT,
+    extracted_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_posting_pay_extracted ON posting_pay(extracted_at)`,
   `CREATE TABLE IF NOT EXISTS daily_snapshots (
     date       TEXT PRIMARY KEY,
     snapshot   JSONB NOT NULL,
@@ -340,6 +353,7 @@ export class Store {
     upserts: PostingRecord[],
     checks: { postingId: string; at: string; observedStatus: string; statusCode: number | null; note: string | null }[],
     events: PostingEvent[],
+    payRows: PayInfo[] = [],
     chunkSize = 200
   ): Promise<void> {
     const sql = await this.ready();
@@ -387,6 +401,25 @@ export class Store {
         sql.query(
           `INSERT INTO events (posting_id, identity_key, type, at, detail) VALUES ($1, $2, $3, $4, $5)`,
           [e.postingId, e.identityKey, e.type, e.at, e.detail]
+        )
+      );
+    }
+    for (const p of payRows) {
+      stmts.push(
+        sql.query(
+          `INSERT INTO posting_pay (${Store.PAY_COLS})
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (posting_id) DO UPDATE SET
+             has_pay      = posting_pay.has_pay OR EXCLUDED.has_pay,
+             pay_min      = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.pay_min ELSE posting_pay.pay_min END,
+             pay_max      = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.pay_max ELSE posting_pay.pay_max END,
+             currency     = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.currency ELSE posting_pay.currency END,
+             period       = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.period ELSE posting_pay.period END,
+             pay_text     = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.pay_text ELSE posting_pay.pay_text END,
+             source       = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.source ELSE posting_pay.source END,
+             fetch_error  = EXCLUDED.fetch_error,
+             extracted_at = EXCLUDED.extracted_at`,
+          Store.payToRow(p)
         )
       );
     }
@@ -648,6 +681,102 @@ export class Store {
     return rows.map(Store.rowToRequirement);
   }
 
+  /* --------------------- posting_pay (pay-signal extraction) --------------------- */
+
+  private static PAY_COLS =
+    "posting_id, has_pay, pay_min, pay_max, currency, period, pay_text, source, fetch_error, extracted_at";
+
+  private static payToRow(p: PayInfo): unknown[] {
+    return [
+      p.postingId, p.hasPay, p.payMin, p.payMax, p.currency, p.period, p.payText,
+      p.source, p.fetchError, p.extractedAt,
+    ];
+  }
+
+  private static rowToPay(row: Record<string, unknown>): PayInfo {
+    return {
+      postingId: String(row.posting_id),
+      hasPay: Boolean(row.has_pay),
+      payMin: row.pay_min == null ? null : Number(row.pay_min),
+      payMax: row.pay_max == null ? null : Number(row.pay_max),
+      currency: row.currency ? String(row.currency) : null,
+      period: row.period ? (String(row.period) as PayInfo["period"]) : null,
+      payText: row.pay_text ? String(row.pay_text) : null,
+      source: row.source ? (String(row.source) as PayInfo["source"]) : null,
+      fetchError: row.fetch_error ? String(row.fetch_error) : null,
+      extractedAt: String(row.extracted_at),
+    };
+  }
+
+  /**
+   * Upsert one posting's pay extraction. The pay signal is MONOTONE on the
+   * positive: once pay has been read for a posting, a later read that finds no
+   * pay never downgrades the row (we saw it; we don't un-see it). The
+   * "we read this listing and it states no pay" state is only ever written
+   * over a row that never had pay, so the honest baselines stay distinct.
+   */
+  async upsertPay(p: PayInfo): Promise<void> {
+    await this.flushPayWrites([p]);
+  }
+
+  /** Batched pay writes (same monotone SQL as upsertPay, chunked for Neon). */
+  async flushPayWrites(rows: PayInfo[], chunkSize = 200): Promise<void> {
+    const sql = await this.ready();
+    if (!rows.length) return;
+    const stmts: Promise<unknown>[] = [];
+    for (const p of rows) {
+      stmts.push(
+        sql.query(
+          `INSERT INTO posting_pay (${Store.PAY_COLS})
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (posting_id) DO UPDATE SET
+             has_pay      = posting_pay.has_pay OR EXCLUDED.has_pay,
+             pay_min      = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.pay_min ELSE posting_pay.pay_min END,
+             pay_max      = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.pay_max ELSE posting_pay.pay_max END,
+             currency     = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.currency ELSE posting_pay.currency END,
+             period       = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.period ELSE posting_pay.period END,
+             pay_text     = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.pay_text ELSE posting_pay.pay_text END,
+             source       = CASE WHEN EXCLUDED.has_pay THEN EXCLUDED.source ELSE posting_pay.source END,
+             fetch_error  = EXCLUDED.fetch_error,
+             extracted_at = EXCLUDED.extracted_at`,
+          Store.payToRow(p)
+        )
+      );
+    }
+    for (let i = 0; i < stmts.length; i += chunkSize) {
+      await sql.transaction(stmts.slice(i, i + chunkSize) as never);
+    }
+  }
+
+  /** One posting's pay row (null = pay not checked yet). */
+  async getPay(postingId: string): Promise<PayInfo | null> {
+    const sql = await this.ready();
+    const rows = await sql.query(`SELECT ${Store.PAY_COLS} FROM posting_pay WHERE posting_id = $1`, [postingId]);
+    return rows[0] ? Store.rowToPay(rows[0]) : null;
+  }
+
+  /** Batched pay read (one ANY() query — used by buildSignals for identity groups). */
+  async getPaysForPostingIds(ids: string[]): Promise<PayInfo[]> {
+    const sql = await this.ready();
+    const uniq = [...new Set(ids)];
+    if (!uniq.length) return [];
+    const rows = await sql.query(`SELECT ${Store.PAY_COLS} FROM posting_pay WHERE posting_id = ANY($1::text[])`, [uniq]);
+    return rows.map(Store.rowToPay);
+  }
+
+  /** Every pay row in the store (one query — the report/company-page context). */
+  async allPay(): Promise<PayInfo[]> {
+    const sql = await this.ready();
+    const rows = await sql.query(`SELECT ${Store.PAY_COLS} FROM posting_pay`);
+    return rows.map(Store.rowToPay);
+  }
+
+  /** Remove one posting's pay row (fixture cleanup). */
+  async deletePay(postingId: string): Promise<void> {
+    const sql = await this.ready();
+    await sql.query(`DELETE FROM posting_pay WHERE posting_id = $1`, [postingId]);
+  }
+
   /* ----------------------------- daily_snapshots (daily picture) ----------------------------- */
 
   /** Persist a daily snapshot (idempotent: re-running a date REPLACES the row). */
@@ -772,6 +901,7 @@ export class Store {
     const sql = await this.ready();
     await sql.query(`DELETE FROM events WHERE posting_id = $1`, [postingId]);
     await sql.query(`DELETE FROM checks WHERE posting_id = $1`, [postingId]);
+    await sql.query(`DELETE FROM posting_pay WHERE posting_id = $1`, [postingId]);
     await sql.query(`DELETE FROM postings WHERE posting_id = $1`, [postingId]);
   }
 
@@ -780,6 +910,7 @@ export class Store {
     const sql = await this.ready();
     await sql.query(`DELETE FROM events`);
     await sql.query(`DELETE FROM checks`);
+    await sql.query(`DELETE FROM posting_pay`);
     await sql.query(`DELETE FROM postings`);
   }
 

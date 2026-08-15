@@ -56,6 +56,49 @@ export interface PostingRequirement {
   fetchError: string | null;
 }
 
+/** Pay period normalization (as declared on the listing; null = not declared). */
+export type PayPeriod = "year" | "month" | "week" | "day" | "hour";
+
+/**
+ * Pay-consistency verdict for one posting (owner decision 2026-08-15 — the pay
+ * signal). Computed over the same-role group (identity + location):
+ *   consistent        — 2+ listings state pay and the bands agree
+ *   conflict          — 2+ listings state pay and the bands disagree (ghost tell)
+ *   only-one-listing  — exactly 1 listing states pay: nothing to compare
+ *   not-stated        — listings were read and none states pay (never a conflict)
+ *   not-checked       — no listing has been re-read since pay tracking started
+ */
+export type PayConsistencyVerdict = "consistent" | "conflict" | "only-one-listing" | "not-stated" | "not-checked";
+
+/**
+ * One posting's pay extraction (table posting_pay, one row per postingId).
+ * Derived ONLY from data the engine actually read — a structured ATS field or a
+ * salary phrase in the listing text. A row with hasPay=false is the honest
+ * "we read this listing and it does not state pay" record; a posting with NO
+ * row at all means "pay not checked yet" (distinguishable, never guessed).
+ */
+export interface PayInfo {
+  postingId: string;
+  /** true when a salary/compensation figure was actually read */
+  hasPay: boolean;
+  /** low end of the band as observed (major currency units; null when single/unread) */
+  payMin: number | null;
+  /** high end of the band as observed (null when single/unread) */
+  payMax: number | null;
+  /** currency as observed ("USD", "$", "EUR", "£", ...; null when not declared) */
+  currency: string | null;
+  /** pay period as declared; null when the listing doesn't say */
+  period: PayPeriod | null;
+  /** the raw salary phrase we read (e.g. "$120,000 – $150,000 per year") */
+  payText: string | null;
+  /** where the pay was read: "structured" (ATS/JSON-LD field) or "description" */
+  source: "structured" | "description" | null;
+  /** set when the listing data could not be read (honest "not readable") */
+  fetchError: string | null;
+  /** ISO timestamp of this extraction */
+  extractedAt: string;
+}
+
 /** A tracked posting. One row per normalized postingId (URL identity anchor). */
 export interface PostingRecord {
   postingId: string; // normalized identity anchor derived from the URL (see urls.ts)
@@ -152,6 +195,17 @@ export interface PostingSignals {
   events: PostingEvent[];
   /** Derived status timeline (status segments with from/to timestamps). */
   statusHistory: { status: PostingStatus; from: string; to: string | null }[];
+  /**
+   * This posting's pay extraction (null = pay not checked yet — never a
+   * "not stated" claim, and never a score deduction).
+   */
+  pay: PayInfo | null;
+  /**
+   * Pay extractions for every posting in the same-role comparison group
+   * (identity group ∩ same location, when this posting declares a location).
+   * The pay-consistency verdict is computed over this list.
+   */
+  payGroup: PayInfo[];
   /** Honesty metadata: which fields were actually observed. */
   dataQuality: {
     title: "observed" | "missing";

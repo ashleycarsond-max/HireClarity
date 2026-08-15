@@ -30,8 +30,9 @@
 import { fetchBoard } from "./boards";
 import type { BoardFetchResult, BoardJob, BoardKind } from "./boards";
 import { buildRegistry, type MonitoredCompany } from "./companies";
+import { extractPayFromBoardRaw } from "./pay";
 import { Store } from "./store";
-import type { PostingEvent, PostingRecord } from "./types";
+import type { PayInfo, PostingEvent, PostingRecord } from "./types";
 import { identityKey } from "./urls";
 
 export interface SyncOptions {
@@ -128,6 +129,28 @@ export async function ingestBoardJobs(
   const upserts: PostingRecord[] = [];
   const checks: { postingId: string; at: string; observedStatus: string; statusCode: number | null; note: string | null }[] = [];
   const events: PostingEvent[] = [];
+  // Pay signal (owner decision 2026-08-15): the board APIs carry structured
+  // compensation (Greenhouse `compensation`, Ashby/Lever `salaryRange`) and/or
+  // the ad copy — extract per job WITHOUT any extra fetch, and persist batched
+  // with the same flush. Jobs with no pay data get the honest "not stated"
+  // row; the store's monotone merge never downgrades a positive observation.
+  const payRows: PayInfo[] = [];
+  for (const job of jobs) {
+    if (!job.postingId) continue;
+    const payExtract = extractPayFromBoardRaw(job.raw);
+    payRows.push({
+      postingId: job.postingId,
+      hasPay: Boolean(payExtract),
+      payMin: payExtract?.min ?? null,
+      payMax: payExtract?.max ?? null,
+      currency: payExtract?.currency ?? null,
+      period: payExtract?.period ?? null,
+      payText: payExtract?.payText ?? null,
+      source: payExtract?.source ?? null,
+      fetchError: null,
+      extractedAt: nowIso,
+    });
+  }
 
   for (const job of jobs) {
     if (!job.postingId) continue;
@@ -271,7 +294,7 @@ export async function ingestBoardJobs(
   }
 
   if (!dryRun && (upserts.length || checks.length || events.length)) {
-    await store.flushSyncWrites(upserts, checks, events);
+    await store.flushSyncWrites(upserts, checks, events, payRows);
   }
 
   return counts;

@@ -4,23 +4,26 @@
  * checks, events); nothing is estimated or synthesized.
  */
 
-import type { PostingEvent, PostingRecord, PostingSignals } from "./types";
+import type { PayInfo, PostingEvent, PostingRecord, PostingSignals } from "./types";
 import { Store } from "./store";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Prefetched lookup tables that let `buildSignals` skip the per-posting store
- * round-trips (identity groups + events). The monthly report builds one
- * context for the whole store and passes it to every call — same results,
- * ~5 queries instead of N+1 over Neon HTTP. When absent, buildSignals falls
- * back to the store (unchanged behavior for /check, /company, CLI).
+ * round-trips (identity groups + events + pay rows). The monthly report and
+ * the public company pages build one context for the whole store and pass it
+ * to every call — same results, ~5 queries instead of N+1 over Neon HTTP. When
+ * absent, buildSignals falls back to the store (unchanged behavior for /check,
+ * /company, CLI).
  */
 export interface SignalContext {
   /** identityKey → every record sharing that key (must include the record itself) */
   identityGroups: Map<string, PostingRecord[]>;
   /** postingId → its transition events (chronological) */
   eventsByPosting: Map<string, PostingEvent[]>;
+  /** postingId → its pay row (the pay signal; absent = pay not checked yet) */
+  payByPosting: Map<string, PayInfo>;
 }
 
 export async function buildSignals(
@@ -46,6 +49,25 @@ export async function buildSignals(
   const events: PostingEvent[] = eventLists
     .flat()
     .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+
+  // ── Pay signal (owner decision 2026-08-15) ────────────────────────────────
+  // `pay` = this posting's row (null = pay not checked yet — never a "not
+  // stated" claim). `payGroup` = the pay rows of the same-role comparison
+  // group: the identity group, narrowed to listings sharing this posting's
+  // location when both declare one (same title at two offices legitimately
+  // pays differently — that must not read as a pay conflict).
+  const payRows = ctx
+    ? postingIds.map((id) => ctx.payByPosting.get(id)).filter((p): p is PayInfo => Boolean(p))
+    : await store.getPaysForPostingIds(postingIds);
+  const myLocation = record.location ? record.location.trim().toLowerCase() : null;
+  const payGroupRecords = myLocation
+    ? group.filter((g) => {
+        const gl = g.location ? g.location.trim().toLowerCase() : null;
+        return !gl || gl === myLocation; // missing location can't be ruled out
+      })
+    : group;
+  const payGroup = payRows.filter((p) => payGroupRecords.some((g) => g.postingId === p.postingId));
+  const pay = payRows.find((p) => p.postingId === record.postingId) ?? null;
 
   // daysListed: whole days from the identity's first observation to now when
   // anything in the group is live/relisted, else to the group's last removal.
@@ -93,6 +115,8 @@ export async function buildSignals(
     distinctPostingsInIdentity: postingIds.length,
     events,
     statusHistory,
+    pay,
+    payGroup,
     dataQuality: {
       title: record.title ? "observed" : "missing",
       location: record.location ? "observed" : "missing",

@@ -458,6 +458,7 @@ function FirstLookCard({ firstLook, postingId }: { firstLook: FirstLook; posting
     { label: "Live status", value: firstLook.liveNote },
     { label: "Board", value: firstLook.board },
     { label: "Posted", value: firstLook.ageNote },
+    { label: "Pay", value: firstLook.payNote },
     { label: "Watching", value: `${started} ${registryNote}` },
   ];
   return (

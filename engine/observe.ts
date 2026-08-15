@@ -10,6 +10,7 @@
 
 import { createHash } from "node:crypto";
 import { extractFromHtml, extractFromJson, looksLikeJson } from "./extract";
+import { extractPayFromBody } from "./pay";
 import { politeFetch } from "./fetch";
 import { checkAllowed, hostOf, throttle } from "./robots";
 import { Store } from "./store";
@@ -188,7 +189,28 @@ export async function observeUrl(inputUrl: string, opts: ObserveOptions): Promis
   };
   await store.upsertPosting(merged);
 
-  // 8. Checks + events (append-only, chronological, no fabrication).
+  // 8. Pay extraction (owner decision 2026-08-15): read compensation from the
+  //    page body we already fetched — structured ATS/JSON-LD fields first, then
+  //    the visible description text. A reading that finds no pay records the
+  //    honest "not stated" row; the store's monotone merge never downgrades a
+  //    positive observation made earlier.
+  if (!removed && body) {
+    const payExtract = extractPayFromBody(body, res.contentType);
+    await store.upsertPay({
+      postingId,
+      hasPay: Boolean(payExtract),
+      payMin: payExtract?.min ?? null,
+      payMax: payExtract?.max ?? null,
+      currency: payExtract?.currency ?? null,
+      period: payExtract?.period ?? null,
+      payText: payExtract?.payText ?? null,
+      source: payExtract?.source ?? null,
+      fetchError: null,
+      extractedAt: nowIso,
+    });
+  }
+
+  // 9. Checks + events (append-only, chronological, no fabrication).
   await store.addCheck(postingId, nowIso, removed ? "removed" : status, statusCode, note ?? null);
 
   if (isNew) {
