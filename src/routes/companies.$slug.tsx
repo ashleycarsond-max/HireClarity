@@ -193,9 +193,9 @@ export function CompanyDetailView({ detail }: { detail: PublicCompanyDetail }) {
         </div>
         <p className="mt-4 text-xs leading-relaxed text-slate-400">
           Observed sample — these are posting facts we actually saw, not judgments. Confidence scores are computed
-          from what we observe — 0-100, higher = more confidence the posting is real and active. Company-level
-          analytics (posting-health scores, benchmarks, trends, quarterly reports) were a separate Company product
-          that's retired for now — everything we track is public here.
+          from what we observe — 0-100, higher = more confidence the posting is real and active. Everything
+          we track is public here — scores, histories and the reasons behind them. Company-level analytics
+          aren't for sale right now.
         </p>
         <p className="mt-2 text-sm">
           <a href="/check" className="font-semibold text-indigo-600 hover:underline">

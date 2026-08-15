@@ -6,7 +6,7 @@ import appCss from "~/styles/app.css?url";
 const SITE_URL = "https://hireclarity-data.vercel.app";
 const TITLE = "Ghost Jobs: Spot Them Before You Apply | HireClarity Data";
 const DESCRIPTION =
-  "Is a job posting real? HireClarity Data tracks how long it's listed, how often it's reposted, and where it appears — one confidence score, public for every posting we track. Plus 5 free checks a month, then $9/month for unlimited.";
+  "Is a job posting real? HireClarity Data tracks how long it's listed, how often it's reposted, and where it appears — one confidence score, public for every posting we track, with honest 'Insufficient data' states while history builds. Plus 5 free checks a month, then $9/month for unlimited.";
 const OG_IMAGE_ALT =
   "HireClarity Data — dark card with the wordmark and the line: Know if a job posting is real before you apply.";
 
@@ -47,6 +47,14 @@ const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: [
+    {
+      "@type": "Question",
+      name: "Do all postings have a score yet?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Scores populate as tracking history builds — a posting needs at least a few days of observations before the score moves off neutral. Postings we've just started watching honestly show 'Insufficient data'. Every tracked posting is re-reviewed every few hours, so scores firm up automatically as we watch.",
+      },
+    },
     {
       "@type": "Question",
       name: "What is a ghost job?",

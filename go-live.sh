@@ -87,8 +87,9 @@ done
 echo "==> deploying${VERCEL_SCOPE:+ (scope: $VERCEL_SCOPE)}"
 # --prod: the deploy becomes the PRODUCTION deployment. Vercel Cron Jobs only
 # fire against the production deployment (docs), so without this the scheduled
-# sync would never run even though vercel.json declares it. The alias is
-# re-pointed to the fresh deployment URL right after (see the caller).
+# sync would never run even though vercel.json declares it. The
+# hireclarity-data.vercel.app alias is re-pointed to the fresh deployment URL
+# at the end of this script (see below).
 DEPLOY_OUT="$($VERCEL deploy --prebuilt --prod --yes --token "$VERCEL_TOKEN" \
   --name "$PROJECT_NAME" "${SCOPE_ARGS[@]}" "${ENV_ARGS[@]}" 2>&1)" || {
   printf '%s\n' "$DEPLOY_OUT" >&2
@@ -111,3 +112,19 @@ curl -sf -X PATCH "https://api.vercel.com/v9/projects/${PROJECT_NAME}${TEAM_QS}"
   echo "warning: could not disable SSO protection (site may show a login wall)" >&2
 
 echo "LIVE: $LIVE_URL"
+# Re-point the canonical alias to the fresh deployment (last step so a deploy
+# can't ship without it). Hostname WITHOUT the https:// prefix; no --yes flag.
+# Safe when VERCEL_TOKEN is unset: skip with a warning, never fail the deploy.
+echo "==> re-pointing the hireclarity-data.vercel.app alias"
+if [ -n "${VERCEL_TOKEN:-}" ]; then
+  ALIAS_HOST="$(printf '%s' "$LIVE_URL" | sed -E 's#^https?://##')"
+  if ! $VERCEL alias set "$ALIAS_HOST" hireclarity-data.vercel.app \
+    --token "$VERCEL_TOKEN" --scope hire-clarity-data 2>&1; then
+    echo "warning: alias re-point FAILED — site is live at $LIVE_URL but hireclarity-data.vercel.app still points at the previous deployment" >&2
+    echo "  run manually: bunx vercel alias set $ALIAS_HOST hireclarity-data.vercel.app --token \$VERCEL_TOKEN --scope hire-clarity-data" >&2
+  else
+    echo "alias: hireclarity-data.vercel.app -> $LIVE_URL"
+  fi
+else
+  echo "warning: VERCEL_TOKEN unset — skipping alias re-point (deploy is live at $LIVE_URL; run the alias manually)" >&2
+fi

@@ -42,7 +42,7 @@ These signs are useful, but they have a ceiling. A fresh posting can be a ghost 
 
 ## What the data shows
 
-That's where tracking comes in. HireClarity Data watches roughly 8,000 live postings across about 90 companies and checks each one daily. Because we observe postings over time rather than once, we see things a single visit can't:
+That's where tracking comes in. HireClarity Data watches roughly 8,000 live postings across about 90 companies and re-reviewing each one every few hours. Because we observe postings over time rather than once, we see things a single visit can't:
 
 - **Listing duration.** How long a posting has been live, and how that compares with the company's other postings.
 - **Take-down and relist cycles.** A posting that disappears and reappears with the same title and requirements is often the same role being recycled — a pattern strongly associated with postings that aren't attached to real hiring.
@@ -58,7 +58,7 @@ We track postings on ATS-hosted boards (Greenhouse, Ashby, Lever, Workable) and 
 
 ## What the market looks like
 
-We publish the aggregate view every month in a free public report — listing durations, relist activity, score distributions, and now the industries hiring the most, the most common titles, and the share of postings requiring degrees or five-plus years of experience. The August 2026 edition is live at https://hireclarity-data.vercel.app/reports/2026-08. The market-level numbers are public; individual company profiles are what the subscriptions unlock.
+We publish the aggregate view every month in a free public report — listing durations, relist activity, score distributions, and now the industries hiring the most, the most common titles, and the share of postings requiring degrees or five-plus years of experience. The August 2026 edition is live at https://hireclarity-data.vercel.app/reports/2026-08. The market-level numbers and every tracked company's scores and histories are public.
 
 ## A practical checklist
 
@@ -104,9 +104,9 @@ None of this is sinister. But for you, the applicant, the result is the same: ti
 
 ## How common are ghost jobs?
 
-The honest answer is that nobody knows the true number for the entire labor market, and anyone who quotes you a precise global figure is guessing. What we can do is measure what we actually observe. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, checking each one daily on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus public company career pages. LinkedIn and Indeed restrict automated access, so they are not part of our sample — and our coverage is always labeled as exactly that: our observed sample.
+The honest answer is that nobody knows the true number for the entire labor market, and anyone who quotes you a precise global figure is guessing. What we can do is measure what we actually observe. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, re-reviewing each one every few hours on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus public company career pages. LinkedIn and Indeed restrict automated access, so they are not part of our sample — and our coverage is always labeled as exactly that: our observed sample.
 
-From that observed sample we can measure how long postings stay listed, how often they are taken down and relisted, and how many show the patterns of a ghost. Those aggregate numbers are published every month in a free public report — the August 2026 edition, covering the first full month of tracking, is live at https://hireclarity-data.vercel.app/reports/2026-08. Individual company scores stay behind the subscription, but the market-level picture is public.
+From that observed sample we can measure how long postings stay listed, how often they are taken down and relisted, and how many show the patterns of a ghost. Those aggregate numbers are published every month in a free public report — the August 2026 edition, covering the first full month of tracking, is live at https://hireclarity-data.vercel.app/reports/2026-08. Company scores and histories are public too; the subscription adds unlimited checks, watchlists and alerts.
 
 The report also shows which industries are hiring the most, the most common job titles, and the share of postings that ask for a degree or five-plus years of experience — all drawn from the same observed sample. Trend direction is marked "n/a" until a second month of history exists; we'd rather label a blank honestly than invent a number.
 
@@ -161,11 +161,11 @@ Boards have no incentive to remove postings either: more listings make a board l
 
 This is worth saying carefully, because it's not about blame — it's about reputation. When candidates apply to a posting that's been listed for months and never hear back, they don't conclude "process failure." They conclude the company is disorganized, or worse, that it wastes applicants' time on purpose. Over time, that pattern shows up in how candidates talk about the company and in how investors read its hiring signals. Leaving postings up is quietly expensive. The fix isn't shame; it's visibility and a small amount of hygiene.
 
-We frame this as reputation protection rather than criticism: a company that keeps its postings current signals that it runs hiring deliberately, which is exactly what candidates and investors want to see. The company dashboard measures posting health the same way the job-seeker side measures ghost risk, and its fix recommendations are practical — remove, update, or pause a posting — never finger-wagging.
+We frame this as reputation protection rather than criticism: a company that keeps its postings current signals that it runs hiring deliberately, which is exactly what candidates and investors want to see. We publish how long your postings have been listed and how often they're reposted — framed as reputation protection, never finger-wagging — and the $9 product lets any team watch their own listings and get alerts.
 
 ## What the data actually shows
 
-We can tell you what "long" looks like in practice, because we measure it. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, checking each one daily on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus company career pages. From that observed sample we can see listing durations, how postings age, and how often they're taken down and relisted. LinkedIn and Indeed restrict automated access and are not part of our sample — our coverage is honestly labeled as observed.
+We can tell you what "long" looks like in practice, because we measure it. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, re-reviewing each one every few hours on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus company career pages. From that observed sample we can see listing durations, how postings age, and how often they're taken down and relisted. LinkedIn and Indeed restrict automated access and are not part of our sample — our coverage is honestly labeled as observed.
 
 That's a carefully labeled sample, not the whole market — about 8,000 postings observed continuously since August 2026 — and we don't pretend otherwise. The aggregate picture is published each month in a free public report, now including the industries hiring the most, the most common titles, and the share of postings requiring degrees or significant experience. The August 2026 edition is live at https://hireclarity-data.vercel.app/reports/2026-08. Trend lines will appear as history accumulates — with daily data compilation already running, the second month will start to show direction.
 
@@ -222,7 +222,7 @@ The fix is unglamorous and cheap: decide which postings are real, update or remo
 
 ## What the data shows
 
-We can quantify staleness because we watch postings continuously. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, checking each one daily on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus company career pages. From that observed sample we measure how long postings sit untouched, how often they're taken down and relisted, and how boards compare. LinkedIn and Indeed restrict automated access, so they aren't in our sample — the coverage is always labeled as our observed sample.
+We can quantify staleness because we watch postings continuously. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, re-reviewing each one every few hours on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus company career pages. From that observed sample we measure how long postings sit untouched, how often they're taken down and relisted, and how boards compare. LinkedIn and Indeed restrict automated access, so they aren't in our sample — the coverage is always labeled as our observed sample.
 
 The limits are real and stated: the sample covers ATS-hosted boards and company career pages, not every platform, and it has been running since August 2026 — enough for a first month of numbers, not yet for trends. That's why trend direction is honestly marked "n/a" in the report for now. The aggregate numbers are public: the monthly report at https://hireclarity-data.vercel.app/reports/2026-08 shows observed listing durations, relist activity, score distributions, the industries hiring the most, the most common titles, and the share of postings requiring degrees or five-plus years of experience. We'd rather label a blank than invent a number.
 

@@ -146,6 +146,11 @@ function ReportsIndexPage() {
               month's snapshot refreshes daily from the latest compile (same URL per month, never a new page
               per day); after that, each month gets its own snapshot on the 1st.
             </li>
+            <li>
+              Score distributions firm up as tracking history builds — every tracked posting is re-reviewed
+              every few hours, so the share of postings at each confidence level becomes meaningful as more
+              postings accumulate enough observations.
+            </li>
           </ul>
         </div>
 

@@ -28,7 +28,7 @@ These signs are useful, but they have a ceiling. A fresh posting can be a ghost 
 
 ## What the data shows
 
-That's where tracking comes in. HireClarity Data watches roughly 8,000 live postings across about 90 companies and checks each one daily. Because we observe postings over time rather than once, we see things a single visit can't:
+That's where tracking comes in. HireClarity Data watches roughly 8,000 live postings across about 90 companies and re-reviewing each one every few hours. Because we observe postings over time rather than once, we see things a single visit can't:
 
 - **Listing duration.** How long a posting has been live, and how that compares with the company's other postings.
 - **Take-down and relist cycles.** A posting that disappears and reappears with the same title and requirements is often the same role being recycled — a pattern strongly associated with postings that aren't attached to real hiring.
@@ -44,7 +44,7 @@ We track postings on ATS-hosted boards (Greenhouse, Ashby, Lever, Workable) and 
 
 ## What the market looks like
 
-We publish the aggregate view every month in a free public report — listing durations, relist activity, score distributions, and now the industries hiring the most, the most common titles, and the share of postings requiring degrees or five-plus years of experience. The August 2026 edition is live at https://hireclarity-data.vercel.app/reports/2026-08. The market-level numbers are public; individual company profiles are what the subscriptions unlock.
+We publish the aggregate view every month in a free public report — listing durations, relist activity, score distributions, and now the industries hiring the most, the most common titles, and the share of postings requiring degrees or five-plus years of experience. The August 2026 edition is live at https://hireclarity-data.vercel.app/reports/2026-08. The market-level numbers and every tracked company's scores and histories are public.
 
 ## A practical checklist
 
