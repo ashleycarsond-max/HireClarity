@@ -7,6 +7,7 @@ import { startCheckout, type Tier } from "../lib/checkout";
 import { normalizeEmail } from "../lib/email";
 import { addSignup, type SignupResult } from "../server/signup";
 import { COVERAGE_FOOTER } from "../components/CoverageNote";
+import { LearnDropdown } from "../components/SiteChrome";
 import { BLOG_POSTS } from "../generated/blog-content";
 
 export const Route = createFileRoute("/")({
@@ -206,6 +207,9 @@ function Header() {
             </a>
           ))}
         </nav>
+        <span className="hidden lg:inline-block">
+          <LearnDropdown />
+        </span>
         <a
           href="/check"
           className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
