@@ -399,22 +399,27 @@ async function cmdDiscover(limit: number, all: boolean): Promise<void> {
 }
 
 /**
- * `bun run requirements` — rolling requirements refresh for a bounded slice of
- * live postings (REQUIREMENTS_PER_RUN, default 250; per-host cap
- * REQUIREMENTS_HOST_CAP, default 10; wall-clock budget
- * REQUIREMENTS_TIME_BUDGET_MS, default 45s). The same routine the daily cron
- * runs, so the CLI and the cron share one code path.
+ * `bun run requirements` — rolling FULL-description-coverage refresh for a
+ * bounded slice of live postings (REQUIREMENTS_PER_RUN, default 150;
+ * per-host cap REQUIREMENTS_HOST_CAP, default 10; wall-clock budget
+ * REQUIREMENTS_TIME_BUDGET_MS, default 25s; staleness cutoff
+ * DESCRIPTION_STALE_AFTER_DAYS, default 7). The same routine the hourly sync
+ * and the daily cron run, so the CLI, the sync and the cron share one path.
  */
 async function cmdRequirements(): Promise<void> {
-  const started = Date.now();
   const s = store();
   console.log(`REQUIREMENTS REFRESH at ${isoNow()} (Neon store)`);
   const r = await runRequirementsSlice(s, {});
   console.log(
-    `slice: ${r.picked} picked (${r.requested} candidates scanned, ${r.processed} processed, ${r.skippedBudget} skipped on time budget)`
+    `slice: ${r.picked} picked (${r.processed} processed, ${r.skippedBudget} skipped on time budget) | tiers: never-read=${r.pickedNeverRead}, stale=${r.pickedStale}, fresh=${r.pickedFresh}`
   );
   console.log(
     `extractions: ${r.descriptionsRead} descriptions read | ${r.fetchErrors} fetch errors | flags: bachelor=${r.flags.requiresBachelor}, masters=${r.flags.requiresMasters}, 5+years=${r.flags.requires5PlusYears}`
+  );
+  const c = r.coverage;
+  const pct = c.live ? Math.round((c.read / c.live) * 1000) / 10 : 0;
+  console.log(
+    `coverage: ${c.read} of ${c.live} live postings have a read description (${pct}%); fetch errors: ${c.fetchError}; not yet extracted: ${c.notExtracted}`
   );
   console.log(`elapsed: ${r.elapsedMs}ms${r.note ? ` — note: ${r.note}` : ""}`);
 }

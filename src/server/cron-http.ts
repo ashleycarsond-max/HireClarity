@@ -57,6 +57,21 @@ async function handleSync(request: Request): Promise<Response> {
   }
   const started = Date.now();
   try {
+    // FULL-DESCRIPTION-COVERAGE sweep (owner direction 2026-08-15): every
+    // hourly sync pass ALSO reads descriptions for a bounded slice of live
+    // postings — never-extracted first, then stale (older than
+    // DESCRIPTION_STALE_AFTER_DAYS), then covered-oldest (rolling rotation).
+    // Runs FIRST so its completion never depends on how long the sync chunk
+    // took (each stage is resumable: the slice re-picks never-read first, and
+    // runSyncChunk persists its cursor per company). Budget default 25s
+    // (REQUIREMENTS_TIME_BUDGET_MS) so the 60s function limit always fits;
+    // the response reports the honest coverage counts (read / fetch-error /
+    // not-yet-extracted) that feed the daily snapshot's
+    // postingsWithDescriptionRead metric.
+    const req = await runRequirementsSlice(new Store(), {
+      limit: Number(process.env.REQUIREMENTS_PER_RUN) > 0 ? Number(process.env.REQUIREMENTS_PER_RUN) : 150,
+      timeBudgetMs: Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) > 0 ? Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) : 25_000,
+    });
     const report = await runSyncChunk(new Store(), {});
     // Watchlist alert pass: inside the SAME guarded handler, after the sync
     // chunk. It re-reads the store (correct regardless of which chunk processed
@@ -74,6 +89,20 @@ async function handleSync(request: Request): Promise<Response> {
       remaining: report.remaining,
       errors: report.errors,
       storeCount: report.storeCount,
+      requirements: {
+        picked: req.picked,
+        processed: req.processed,
+        skippedBudget: req.skippedBudget,
+        descriptionsRead: req.descriptionsRead,
+        fetchErrors: req.fetchErrors,
+        flags: req.flags,
+        pickedNeverRead: req.pickedNeverRead,
+        pickedStale: req.pickedStale,
+        pickedFresh: req.pickedFresh,
+        staleBefore: req.staleBefore,
+        coverage: req.coverage,
+        elapsedMs: req.elapsedMs,
+      },
       watchlist: {
         evaluated: watch.evaluated,
         sent: watch.sent,
@@ -222,13 +251,16 @@ async function handleReportCron(request: Request): Promise<Response> {
  *
  * Behavior (idempotent by design):
  *   1. Refreshes description requirements for a bounded slice of live postings
- *      (same bounded routine as `bun run requirements`; REQUIREMENTS_PER_RUN
- *      env default 150 here, with a 30s wall-clock budget so the compile that
- *      follows always fits the render function's 60s limit).
+ *      (same bounded routine as `bun run requirements` and the hourly sync's
+ *      sweep; REQUIREMENTS_PER_RUN env default 150 here, with a
+ *      REQUIREMENTS_TIME_BUDGET_MS wall-clock budget default 30s so the
+ *      compile that follows always fits the render function's 60s limit).
  *   2. Compiles today's daily snapshot from the store and saves it
  *      (re-running a date REPLACES the stored snapshot — safe to re-run).
  *   3. Returns a JSON summary: what the requirements slice did + the snapshot's
- *      headline numbers and trends.
+ *      headline numbers and trends (including the coverage metric
+ *      postingsWithDescriptionRead, which climbs toward 100% of live postings
+ *      as the hourly full-description-coverage sweep fills the gap).
  */
 async function handleDailyCron(request: Request): Promise<Response> {
   if (!authorized(request)) {
@@ -242,7 +274,7 @@ async function handleDailyCron(request: Request): Promise<Response> {
   try {
     const req = await runRequirementsSlice(store, {
       limit: Number(process.env.REQUIREMENTS_PER_RUN) > 0 ? Number(process.env.REQUIREMENTS_PER_RUN) : 150,
-      timeBudgetMs: 30_000,
+      timeBudgetMs: Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) > 0 ? Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) : 30_000,
     });
     const date = utcDateStr();
     const snapshot = await computeDailySnapshot(store, date);
