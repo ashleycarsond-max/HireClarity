@@ -40,7 +40,7 @@ Those observations feed the confidence score you get from the free check tool: p
 
 ## A note on coverage
 
-We track postings on ATS-hosted boards (Greenhouse, Ashby, Lever, Workable) and public company career pages. LinkedIn and Indeed restrict automated access, so they are not part of our sample. If a posting lives only on LinkedIn or Indeed, we can't score it yet — and our coverage is always labeled as our observed sample rather than the whole market. We say that plainly because "observed sample" is exactly what it is. The reason for the boundary is straightforward: those platforms' terms don't permit automated collection, and we'd rather track a smaller sample honestly than a larger one by breaking rules.
+We track postings on ATS-hosted boards (Greenhouse, Ashby, Lever) and public company career pages. LinkedIn and Indeed restrict automated access, so they are not part of our sample. If a posting lives only on LinkedIn or Indeed, we can't score it yet — and our coverage is always labeled as our observed sample rather than the whole market. We say that plainly because "observed sample" is exactly what it is. The reason for the boundary is straightforward: those platforms' terms don't permit automated collection, and we'd rather track a smaller sample honestly than a larger one by breaking rules.
 
 ## What the market looks like
 

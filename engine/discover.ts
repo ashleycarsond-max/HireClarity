@@ -10,9 +10,8 @@
  *      or `Name,board,id`, `#` comments allowed). Deduped by (board, boardId).
  *   2. Every candidate is verified LIVE through the SAME politeness layer as
  *      the sync loop (robots.txt check + per-host throttle, boards.ts
- *      fetchBoard — no bypass, no hammering). Workable is excluded (no real
- *      account in the candidate lists; the API 404s for unknown subdomains —
- *      see boards.ts, re-verified 2026-08-15).
+ *      fetchBoard — no bypass, no hammering). Workable is excluded (verified
+ *      live 2026-08-15: widget API retired, no parseable public board — see boards.ts).
  *   3. Each result is classified HONESTLY:
  *        verified       — HTTP 200 + at least one job
  *        empty          — HTTP 200 + zero jobs

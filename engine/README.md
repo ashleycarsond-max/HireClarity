@@ -50,7 +50,9 @@ design: `/home/team/shared/registry-growth-design.md`):
   check of a supported board URL calls
   `store.ensureDiscoveryCandidateFromPosting` (INSERT ON CONFLICT DO NOTHING,
   source `user-check`, non-fatal) — the next daily pass verifies it live.
-- **Workable** (re-verified 2026-08-15): no bot challenge reproduces; the
-  widget API cleanly 404s unknown accounts. Workable stays at 0 accounts
+- **Workable** (re-verified 2026-08-15): the widget API v1 is retired — it
+  404s every account, live or dead; careers pages are client-rendered SPAs
+  with no parseable public board; Cloudflare challenges automated bursts
+  (429 cf-mitigated). Workable stays at 0 accounts
   honestly — no real account has been registered as a candidate yet. The
   fetcher is implemented and would work if a real subdomain were added.

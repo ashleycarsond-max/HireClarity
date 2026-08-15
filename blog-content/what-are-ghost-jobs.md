@@ -31,7 +31,7 @@ None of this is sinister. But for you, the applicant, the result is the same: ti
 
 ## How common are ghost jobs?
 
-The honest answer is that nobody knows the true number for the entire labor market, and anyone who quotes you a precise global figure is guessing. What we can do is measure what we actually observe. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, re-reviewing each one every few hours on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus public company career pages. LinkedIn and Indeed restrict automated access, so they are not part of our sample — and our coverage is always labeled as exactly that: our observed sample.
+The honest answer is that nobody knows the true number for the entire labor market, and anyone who quotes you a precise global figure is guessing. What we can do is measure what we actually observe. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, re-reviewing each one every few hours on ATS-hosted boards like Greenhouse, Ashby, and Lever, plus public company career pages. LinkedIn and Indeed restrict automated access, so they are not part of our sample — and our coverage is always labeled as exactly that: our observed sample.
 
 From that observed sample we can measure how long postings stay listed, how often they are taken down and relisted, and how many show the patterns of a ghost. Those aggregate numbers are published every month in a free public report — the August 2026 edition, covering the first full month of tracking, is live at https://hireclarity-data.vercel.app/reports/2026-08. Company scores and histories are public too; the subscription adds unlimited checks, watchlists and alerts.
 

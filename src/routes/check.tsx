@@ -149,7 +149,7 @@ async function runCheckPipeline(raw: string): Promise<CheckResult> {
       return {
         ok: false,
         error:
-          "This page tells robots not to read it, so we won't — no bypassing. Try a posting on the company's own career site or ATS board (Greenhouse, Ashby, Lever, Workable).",
+          "This page tells robots not to read it, so we won't — no bypassing. Try a posting on the company's own career site or ATS board (Greenhouse, Ashby, Lever).",
       };
     }
     if (!observed.ok && observed.status === "error") {
