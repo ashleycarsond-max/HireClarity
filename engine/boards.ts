@@ -23,18 +23,25 @@
  * as a structured {@link BoardFetchResult} — never thrown — so one broken board
  * can never take down a whole sync.
  *
- * HONESTY NOTE (re-verified live 2026-08-15): the earlier "bot challenge"
- * claim does NOT reproduce today — apply.workable.com/robots.txt fetches fine
- * (no rules → allowed) and the widget API returns clean HTTP 404s for unknown
- * accounts (10 probed subdomains: wizzair, onfido, cazoo, zapp, depop,
- * skyscanner, tractable, transfergo, revolut, getaround); no 429 challenge was
- * observed. Workable still has 0 accounts in the registry for an honest
- * reason: no candidate, seed, or user check has ever produced a real Workable
- * board ref, so nothing probes a valid account. The client is implemented per
- * the documented API and parses jobs correctly; it would work if a real
- * subdomain were registered. Until then, Workable boards report 0 accounts
- * and syncs label coverage as our observed sample. This mirrors the
- * LinkedIn/Indeed situation: we only track what boards let us read.
+ * HONESTY NOTE (verified live 2026-08-15 with REAL accounts): Workable is
+ * NOT trackable by this engine, and the site says so. Evidence from one probe
+ * pass against 5 currently-live Workable boards (eToro, Hopper, GoStudent,
+ * Cabify, Curve — all serve live "Current Openings" pages to a browser):
+ *   1. The documented widget API v1 (this client's endpoint) is RETIRED: it
+ *      returns a plain-text "Not Found" HTTP 404 for every account — live ones
+ *      included — so this client can never return jobs.
+ *   2. Careers pages are client-rendered SPAs: the raw HTML (all our no-JS
+ *      pipeline reads) contains no job data; the SPA fetches jobs from
+ *      /api/v3/accounts/{sub}/jobs, which 404s for plain HTTP clients without
+ *      browser-session context (verified with both bot and browser UAs).
+ *   3. apply.workable.com sits behind Cloudflare bot management: a burst of
+ *      automated requests gets a JS challenge (HTTP 429, cf-mitigated:
+ *      challenge) — observed on 13/44 subdomains in one pass, including
+ *      genuinely live accounts. robots.txt itself stays readable (no rules).
+ * The client is kept for honest failure reporting (a probe of any subdomain
+ * returns HTTP 404 → the discovery cron records it truthfully). Workable
+ * boards report 0 accounts and every public page labels coverage as our
+ * observed sample — same honesty rule as LinkedIn/Indeed.
  */
 
 import { politeFetch } from "./fetch";
@@ -187,7 +194,7 @@ export function fetchLeverBoard(company: string): Promise<BoardFetchResult> {
   });
 }
 
-// ── Workable ──────────────────────────────────────────────────────────────────
+// ── Workable (endpoint retired 2026-08-15 — see HONESTY NOTE: returns 404 for all accounts) ──
 export function fetchWorkableBoard(subdomain: string): Promise<BoardFetchResult> {
   const url = `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(subdomain)}/jobs`;
   return fetchBoardList("workable", subdomain, url, (body) => {

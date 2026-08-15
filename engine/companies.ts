@@ -18,7 +18,7 @@
  *      Ashby:      https://api.ashbyhq.com/posting-api/job-board/<org>
  *      Lever:      https://api.lever.co/v0/postings/<org>?mode=json
  *      Workable:   https://apply.workable.com/api/v1/widget/accounts/<sub>/jobs
- *    (Workable currently returns HTTP 429 bot-challenge — see note below.)
+ *    (Workable is NOT tracked — widget API v1 retired, see note below.)
  * 3. Add an entry to SEED_COMPANIES with the exact public company name (this
  *    name becomes the `company` field on ingested postings, which is what the
  *    identity/removal logic keys on).

@@ -34,7 +34,7 @@ We frame this as reputation protection rather than criticism: a company that kee
 
 ## What the data actually shows
 
-We can tell you what "long" looks like in practice, because we measure it. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, re-reviewing each one every few hours on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus company career pages. From that observed sample we can see listing durations, how postings age, and how often they're taken down and relisted. LinkedIn and Indeed restrict automated access and are not part of our sample — our coverage is honestly labeled as observed.
+We can tell you what "long" looks like in practice, because we measure it. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, re-reviewing each one every few hours on ATS-hosted boards like Greenhouse, Ashby, and Lever, plus company career pages. From that observed sample we can see listing durations, how postings age, and how often they're taken down and relisted. LinkedIn and Indeed restrict automated access and are not part of our sample — our coverage is honestly labeled as observed.
 
 That's a carefully labeled sample, not the whole market — about 8,000 postings observed continuously since August 2026 — and we don't pretend otherwise. The aggregate picture is published each month in a free public report, now including the industries hiring the most, the most common titles, and the share of postings requiring degrees or significant experience. The August 2026 edition is live at https://hireclarity-data.vercel.app/reports/2026-08. Trend lines will appear as history accumulates — with daily data compilation already running, the second month will start to show direction.
 

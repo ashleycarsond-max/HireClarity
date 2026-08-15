@@ -379,7 +379,7 @@ function ReportPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {s.boards.map((b) => (
+                {s.boards.filter((b) => b.board !== "workable").map((b) => (
                   <tr key={b.board}>
                     <td className="px-5 py-3.5 font-medium capitalize text-slate-800">{b.board}</td>
                     <td className="px-5 py-3.5 text-slate-600">{b.count.toLocaleString("en-US")}</td>
@@ -391,8 +391,9 @@ function ReportPage() {
           </div>
           <p className="mt-3 text-xs leading-relaxed text-slate-400">
             "web" = postings tracked directly on a company career page rather than an ATS board. We track
-            Greenhouse, Ashby, Lever and Workable boards plus company career pages; LinkedIn and Indeed
-            restrict automated access and are not tracked.
+            Greenhouse, Ashby and Lever boards plus company career pages. LinkedIn and Indeed restrict
+            automated access and are not tracked, and Workable careers pages expose no parseable public
+            board for automated readers (verified 2026-08-15), so Workable is not tracked either.
           </p>
         </Section>
 
@@ -445,9 +446,10 @@ function ReportPage() {
                 figures describe all job postings.
               </li>
               <li>
-                We track Greenhouse, Ashby, Lever and Workable boards plus company career pages. LinkedIn and
-                Indeed restrict automated access and are not tracked, so postings that only live there are
-                outside this sample.
+                We track Greenhouse, Ashby and Lever boards plus company career pages. LinkedIn and
+                Indeed restrict automated access and are not tracked, and Workable careers pages expose
+                no parseable public board for automated readers (verified 2026-08-15), so Workable is
+                not tracked either — postings that only live on those platforms are outside this sample.
               </li>
               <li>
                 Companies appear only as a count ({p.distinctCompanies} distinct companies in this sample).

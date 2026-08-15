@@ -9,12 +9,12 @@
  * honest failure report (http-404 / http-429 / robots-blocked / parse-error)
  * and are never seeded.
  *
- * Workable is deliberately absent (re-verified live 2026-08-15): the widget
- * API returns clean HTTP 404s for unknown accounts and no bot challenge
- * reproduces, but no REAL Workable account has been obtained/verified yet —
- * so no Workable row exists for discovery to probe. A real subdomain (from a
- * user check of an apply.workable.com URL, or a curated add) would flow
- * through the normal verify path (the fetcher is implemented and tested).
+ * Workable is deliberately absent (verified live 2026-08-15 with REAL
+ * accounts): the widget API v1 is retired (404s every account, live or dead),
+ * careers pages are client-rendered SPAs with no parseable public board, and
+ * Cloudflare challenges automated bursts (429 cf-mitigated). A probe of any
+ * subdomain returns HTTP 404 → discovery records it honestly; no Workable row
+ * is seeded because no parseable board exists.
  */
 
 import type { BoardKind } from "./boards";

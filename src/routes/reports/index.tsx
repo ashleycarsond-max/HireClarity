@@ -133,9 +133,10 @@ function ReportsIndexPage() {
               We never say "X% of all jobs".
             </li>
             <li>
-              We track Greenhouse, Ashby, Lever and Workable boards plus company career pages. LinkedIn and
-              Indeed restrict automated access and are not tracked — so our coverage is an observed sample,
-              not the whole job market.
+              We track Greenhouse, Ashby and Lever boards plus company career pages. LinkedIn and
+              Indeed restrict automated access and are not tracked, and Workable careers pages
+              expose no parseable public board for automated readers (verified 2026-08-15) — so
+              our coverage is an observed sample, not the whole job market.
             </li>
             <li>
               Companies appear only as a count. Everything we track per company is public on its

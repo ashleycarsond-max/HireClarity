@@ -46,8 +46,11 @@ function isLoopbackUrl(url: string): boolean {
   }
 }
 
-/** Boards the tracker covers (observed counts may be 0 — that is honest). */
-export const REPORT_BOARDS = ["greenhouse", "ashby", "lever", "workable", "web"] as const;
+/** Boards the tracker covers (observed counts may be 0 — that is honest).
+ * Workable was removed 2026-08-15: its careers pages render in a browser and
+ * expose no parseable public board for automated readers (widget API v1 404s
+ * every account; the SPA data endpoint needs browser-session context). */
+export const REPORT_BOARDS = ["greenhouse", "ashby", "lever", "web"] as const;
 
 /* -------------------- daily-refresh window (owner decision 2026-08-14) -------------------- */
 

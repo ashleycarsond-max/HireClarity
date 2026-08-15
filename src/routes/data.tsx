@@ -129,10 +129,11 @@ function DataHubPage() {
         </div>
 
         <p className="mt-8 max-w-3xl text-xs leading-relaxed text-slate-400">
-          Coverage note: we track postings on Greenhouse, Ashby, Lever and Workable boards and public company career
-          pages. LinkedIn and Indeed restrict automated access and are not tracked — every number here is labeled as
-          our observed sample. Confidence scores populate as tracking history builds — every tracked posting is
-          re-reviewed every few hours.
+          Coverage note: we track postings on Greenhouse, Ashby and Lever boards and public company career
+          pages. LinkedIn and Indeed restrict automated access and are not tracked; Workable careers pages
+          render in a browser and expose no parseable public board, so Workable is not tracked either — every
+          number here is labeled as our observed sample. Confidence scores populate as tracking history builds —
+          every tracked posting is re-reviewed every few hours.
         </p>
       </main>
       <SiteFooter />

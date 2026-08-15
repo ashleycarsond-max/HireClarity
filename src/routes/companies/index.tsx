@@ -9,7 +9,7 @@ const SITE_URL = "https://hireclarity-data.vercel.app";
 
 const TITLE = "Tracked Companies: Observed Job Postings | HireClarity Data";
 const DESCRIPTION =
-  "The companies HireClarity Data actively monitors — observed postings on Greenhouse, Ashby, Lever and Workable boards, labeled as our observed sample. Every tracked company's confidence scores and posting histories are public and free.";
+  "The companies HireClarity Data actively monitors — observed postings on Greenhouse, Ashby and Lever boards and company career pages, labeled as our observed sample. Every tracked company's confidence scores and posting histories are public and free.";
 
 const loadData = createServerFn({ method: "POST" }).handler(async () => {
   const store = new Store();
