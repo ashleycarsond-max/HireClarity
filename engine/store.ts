@@ -662,18 +662,26 @@ export class Store {
   }
 
   /**
-   * Candidate slice for the rolling requirements refresh: LIVE postings
-   * (status live or relisted) ordered so the never-extracted ones come first,
-   * then oldest-extracted first (round-robin by last extraction), then by
-   * posting_id for a stable tiebreak — AND capped per host (ROW_NUMBER over
-   * the posting's URL host) so one giant board (e.g. a 1,500-posting Ashby
-   * host) cannot starve every other company's postings out of a run. The
-   * slice interleaves hosts by rank (rank-1 posting of each host, then rank-2,
-   * ...), so politeness per host (2s throttle) and breadth across hosts are
-   * both bounded. `limit` bounds the returned rows; `hostCap` (default 10)
-   * bounds each host's share.
+   * Candidate slice for the rolling requirements refresh (FULL-COVERAGE
+   * sweep, owner direction 2026-08-15): LIVE postings (status live or
+   * relisted) ordered in three explicit priority tiers —
+   *   1. never extracted (no posting_requirements row) — the coverage gap;
+   *   2. STALE (extracted_at older than `staleBefore`, when given) — the
+   *      fresh-kept promise: every covered posting is re-read within
+   *      DESCRIPTION_STALE_AFTER_DAYS;
+   *   3. covered-but-fresh, oldest extraction first (the rolling rotation
+   *      that only engages once tiers 1-2 are exhausted within the budget).
+   * Then by posting_id for a stable tiebreak — AND capped per host
+   * (ROW_NUMBER over the posting's URL host) so one giant board (e.g. a
+   * 1,500-posting Ashby host) cannot starve every other company's postings
+   * out of a run. The slice interleaves hosts by rank (rank-1 posting of
+   * each host, then rank-2, ...), so politeness per host (2s throttle) and
+   * breadth across hosts are both bounded. `limit` bounds the returned rows;
+   * `hostCap` (default 10) bounds each host's share. Passing a NULL
+   * `staleBefore` disables the explicit stale tier (all covered postings
+   * order by extraction age — the pre-coverage behavior).
    */
-  async listRequirementCandidates(limit: number, hostCap = 10): Promise<PostingRecord[]> {
+  async listRequirementCandidates(limit: number, hostCap = 10, staleBefore?: string | null): Promise<PostingRecord[]> {
     const sql = await this.ready();
     const rows = await sql.query(
       `SELECT p.${ROW_COLS}
@@ -681,7 +689,8 @@ export class Store {
          SELECT p.posting_id,
                 row_number() OVER (
                   PARTITION BY split_part(split_part(p.canonical_url, '://', 2), '/', 1)
-                  ORDER BY (r.extracted_at IS NULL) DESC, r.extracted_at ASC NULLS FIRST, p.posting_id
+                  ORDER BY (r.extracted_at IS NULL) DESC, (r.extracted_at < $3) DESC,
+                           r.extracted_at ASC NULLS FIRST, p.posting_id
                 ) AS rn
          FROM postings p
          LEFT JOIN posting_requirements r ON r.posting_id = p.posting_id
@@ -691,9 +700,36 @@ export class Store {
        WHERE ranked.rn <= $2
        ORDER BY ranked.rn, p.posting_id
        LIMIT $1`,
-      [limit, hostCap]
+      [limit, hostCap, staleBefore ?? null]
     );
     return rows.map(rowToRecord);
+  }
+
+  /**
+   * Honest description-coverage counts across the LIVE store (the % source
+   * for the daily snapshot, the report, and the cron responses). Mirrors the
+   * daily-stats definitions exactly: read = row with descriptionPresent;
+   * fetchError = row without description and a fetch_error; notExtracted =
+   * no row at all, or a row with neither description nor fetch_error.
+   */
+  async requirementCoverage(): Promise<{ live: number; read: number; fetchError: number; notExtracted: number }> {
+    const sql = await this.ready();
+    const rows = await sql.query(
+      `SELECT
+         count(*) FILTER (WHERE p.status IN ('live', 'relisted')) AS live,
+         count(*) FILTER (WHERE p.status IN ('live', 'relisted') AND r.description_present) AS read,
+         count(*) FILTER (WHERE p.status IN ('live', 'relisted') AND NOT r.description_present AND r.fetch_error IS NOT NULL) AS fetch_error,
+         count(*) FILTER (WHERE p.status IN ('live', 'relisted') AND (r.posting_id IS NULL OR (NOT r.description_present AND r.fetch_error IS NULL))) AS not_extracted
+       FROM postings p
+       LEFT JOIN posting_requirements r ON r.posting_id = p.posting_id`
+    );
+    const row = rows[0];
+    return {
+      live: Number(row?.live ?? 0),
+      read: Number(row?.read ?? 0),
+      fetchError: Number(row?.fetch_error ?? 0),
+      notExtracted: Number(row?.not_extracted ?? 0),
+    };
   }
 
   /** Read one posting's requirement row (null when it was never extracted). */

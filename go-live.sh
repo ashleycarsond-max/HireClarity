@@ -86,17 +86,17 @@ if [ -z "${EARLY_ACCESS_FREE:-}" ]; then EARLY_ACCESS_FREE=0; fi
 # Sizing vars are read from .env (Bun-style KEY=VALUE, gitignored) when the
 # shell env doesn't already set them — a deploy must never silently drop the
 # hourly sync to 1 company/run (~88h cycle) just because COMPANIES_PER_RUN
-# wasn't exported. Only these four non-secret vars are read; secrets are never
+# wasn't exported. Only these non-secret vars are read; secrets are never
 # sourced from .env (the shell env is the source of truth for those).
 if [ -f "$(dirname "$0")/.env" ]; then
-  for VAR in COMPANIES_PER_RUN DISCOVERY_PER_RUN DISCOVERY_HOST_CAP DISCOVERY_TIME_BUDGET_MS; do
+  for VAR in COMPANIES_PER_RUN DISCOVERY_PER_RUN DISCOVERY_HOST_CAP DISCOVERY_TIME_BUDGET_MS REQUIREMENTS_PER_RUN REQUIREMENTS_TIME_BUDGET_MS DESCRIPTION_STALE_AFTER_DAYS; do
     if [ -z "${!VAR:-}" ]; then
       VAL="$(sed -n "s/^${VAR}=//p" "$(dirname "$0")/.env" | head -1 | tr -d '\r')"
       if [ -n "$VAL" ]; then export "$VAR=$VAL"; fi
     fi
   done
 fi
-for VAR in STRIPE_SECRET_KEY STRIPE_PUBLISHABLE_KEY STRIPE_WEBHOOK_SECRET EARLY_ACCESS_FREE RESEND_API_KEY EMAIL_FROM CRON_SECRET COMPANIES_PER_RUN DISCOVERY_PER_RUN DISCOVERY_HOST_CAP DISCOVERY_TIME_BUDGET_MS; do
+for VAR in STRIPE_SECRET_KEY STRIPE_PUBLISHABLE_KEY STRIPE_WEBHOOK_SECRET EARLY_ACCESS_FREE RESEND_API_KEY EMAIL_FROM CRON_SECRET COMPANIES_PER_RUN DISCOVERY_PER_RUN DISCOVERY_HOST_CAP DISCOVERY_TIME_BUDGET_MS REQUIREMENTS_PER_RUN REQUIREMENTS_TIME_BUDGET_MS DESCRIPTION_STALE_AFTER_DAYS; do
   if [ -n "${!VAR:-}" ]; then ENV_ARGS+=(-e "$VAR=${!VAR}"); fi
 done
 

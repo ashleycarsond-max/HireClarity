@@ -41,7 +41,8 @@
     "discovery-sync-test": "bun run engine/discovery-sync-test.ts",
     "report-daily-test": "bun run engine/report-daily-test.ts",
     "company-bench-test": "bun run engine/company-bench-test.ts",
-    "company-report-test": "bun run engine/company-report-test.ts"
+    "company-report-test": "bun run engine/company-report-test.ts",
+    "requirements-sync-test": "bun run engine/requirements-sync-test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
