@@ -1,10 +1,41 @@
 /**
  * Shared header + footer for the content pages (blog, companies, industries,
- * data). Keeps the navigation ring consistent: /check, /reports, /blog, /data.
+ * data). Keeps the navigation ring consistent: /check, /reports, /companies,
+ * /industries, /blog, /data — with the four public-data destinations grouped
+ * under a "Data" dropdown in the top ribbon (owner decision 2026-08-15).
  */
+import { useEffect, useRef, useState } from "react";
 import { COVERAGE_FOOTER } from "./CoverageNote";
 
+const DATA_LINKS = [
+  { href: "/reports", label: "Reports" },
+  { href: "/companies", label: "Companies" },
+  { href: "/industries", label: "Industries" },
+  { href: "/data", label: "Data hub" },
+];
+
 export function SiteHeader() {
+  const [dataOpen, setDataOpen] = useState(false);
+  const dataRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!dataOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (dataRef.current && !dataRef.current.contains(e.target as Node)) {
+        setDataOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDataOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [dataOpen]);
+
   return (
     <header className="border-b border-slate-200/70 bg-white/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
@@ -29,23 +60,52 @@ export function SiteHeader() {
             Check a posting
           </a>
           <a
-            href="/reports"
-            className="hidden rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 hover:text-indigo-600 sm:inline-block"
-          >
-            Reports
-          </a>
-          <a
             href="/blog"
             className="hidden rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 hover:text-indigo-600 sm:inline-block"
           >
             Blog
           </a>
-          <a
-            href="/data"
-            className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 hover:text-indigo-600"
-          >
-            Data
-          </a>
+          <div ref={dataRef} className="relative">
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={dataOpen}
+              onClick={() => setDataOpen((v) => !v)}
+              className="flex items-center gap-1 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 hover:text-indigo-600"
+            >
+              Data
+              <svg
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+                className={`h-4 w-4 transition-transform ${dataOpen ? "rotate-180" : ""}`}
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+            {dataOpen ? (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-2 w-48 rounded-xl border border-slate-200 bg-white py-2 shadow-lg"
+              >
+                {DATA_LINKS.map((l) => (
+                  <a
+                    key={l.href}
+                    href={l.href}
+                    role="menuitem"
+                    onClick={() => setDataOpen(false)}
+                    className="block px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-indigo-600"
+                  >
+                    {l.label}
+                  </a>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </nav>
       </div>
     </header>
