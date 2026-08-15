@@ -33,6 +33,8 @@ import { computeReportSnapshot, currentPeriod, reportSummaryLine, saveReportSnap
 import { runRequirementsSlice } from "./requirements-sync";
 import { computeDailySnapshot, dailySummaryLine, saveDailySnapshot } from "./daily-stats";
 import { runDiscovery } from "./discover";
+import { runDiscoverySlice, discoverySummaryLine } from "./discovery-sync";
+import { seedDiscoveryPool } from "./seed-discovery-pool";
 
 // import.meta.dir is Bun-only; this form is portable and TS-clean.
 const HERE = new URL(".", import.meta.url).pathname;
@@ -483,6 +485,44 @@ async function cmdCompanyReport(slug: string | null, quarter: string | null): Pr
   console.log(`\n(stored in company_reports for ${report.company} / ${report.quarter})`);
 }
 
+/**
+ * `bun run discovery-slice [--limit N]` — the scheduled discovery pass as a
+ * CLI (same code path as the daily 01:45 UTC cron). Picks a bounded slice of
+ * due candidates from the Neon pool, verifies each live (robots + throttle +
+ * the same 9-way classification as `bun run discover`), and records results
+ * honestly. Defaults from DISCOVERY_PER_RUN / DISCOVERY_HOST_CAP /
+ * DISCOVERY_TIME_BUDGET_MS.
+ */
+async function cmdDiscoverySlice(limit: number | null): Promise<void> {
+  const started = Date.now();
+  const s = store();
+  console.log(`DISCOVERY-SLICE at ${isoNow()} (Neon pool)`);
+  const r = await runDiscoverySlice(s, { limit: limit ?? undefined });
+  console.log(
+    `picked: ${r.picked} | processed: ${r.processed} | skippedBudget: ${r.skippedBudget} | pool: ${r.poolSize}`
+  );
+  console.log(`byReason: ${discoverySummaryLine(r.byReason)}`);
+  console.log(`newly verified: ${r.newlyVerified.length ? r.newlyVerified.join(", ") : "(none)"}`);
+  console.log(`elapsed: ${r.elapsedMs}ms (total ${Date.now() - started}ms)`);
+}
+
+/**
+ * `bun run seed-candidates` — idempotently seed the Neon discovery pool from
+ * the repo's verified seed data (SEED_COMPANIES as 'verified' + the 231
+ * FALLBACK_CANDIDATES as 'pending'). Re-running is a no-op for existing rows.
+ */
+async function cmdSeedCandidates(): Promise<void> {
+  const s = store();
+  const before = await s.discoveryPoolSummary();
+  const beforeTotal = Object.values(before).reduce((a, b) => a + b, 0);
+  console.log(`DISCOVERY POOL SEED at ${isoNow()} (Neon pool, before: ${beforeTotal} rows)`);
+  const r = await seedDiscoveryPool(s);
+  console.log(
+    `seeded ${r.verifiedRows} verified board refs + ${r.curatedRows} curated candidates | inserted this run: ${r.inserted} (re-run: 0)`
+  );
+  console.log(`pool after: ${r.poolSize} rows | ${Object.entries(r.statusCounts).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+}
+
 async function main(): Promise<void> {
   const args = Bun.argv.slice(2);
   const cmd = args[0];
@@ -496,6 +536,8 @@ Usage:
   bun run sync-chunk [--companies N]  bounded sync batch (cron-safe, cursor-advancing)
   bun run sync-test              fixture proof: sync removal + relist detection (real Neon)
   bun run discover [--limit N] [--all]  verify candidate companies live → verified registry
+  bun run discovery-slice [--limit N]   scheduled discovery pass (Neon pool; same code the daily cron runs)
+  bun run seed-candidates               idempotently seed the Neon discovery pool (verified seeds + curated guesses)
   bun run signals [postingId]    print signals JSON for all (or one) postings
   bun run score [postingId]      print confidence scores + reasons for all (or one) postings
   bun run report-generate [YYYY-MM]  compute + store the monthly job-market report snapshot
@@ -578,6 +620,15 @@ Storage: Neon Postgres (process.env.DATABASE_URL)
       await cmdDiscover(Number.isFinite(lim) && lim > 0 ? lim : 0, args.includes("--all"));
       break;
     }
+    case "discovery-slice": {
+      const li = args.indexOf("--limit");
+      const lim = li >= 0 ? parseInt(args[li + 1] ?? "0", 10) : 0;
+      await cmdDiscoverySlice(Number.isFinite(lim) && lim > 0 ? lim : null);
+      break;
+    }
+    case "seed-candidates":
+      await cmdSeedCandidates();
+      break;
     case "track-demo":
       await cmdTrackDemo();
       break;

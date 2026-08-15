@@ -46,7 +46,7 @@ JSON
 # env var (deploy-time `-e` is not enough — Vercel Cron reads it from the
 # project's env to attach the Authorization header).
 cat > .vercel/output/config.json <<'JSON'
-{ "version": 3, "routes": [ { "handle": "filesystem" }, { "src": "/(.*)", "dest": "/render" } ], "crons": [ { "path": "/api/cron/sync", "schedule": "0 * * * *" }, { "path": "/api/cron/report", "schedule": "0 9 * * *" }, { "path": "/api/cron/daily", "schedule": "30 2 * * *" } ] }
+{ "version": 3, "routes": [ { "handle": "filesystem" }, { "src": "/(.*)", "dest": "/render" } ], "crons": [ { "path": "/api/cron/sync", "schedule": "0 * * * *" }, { "path": "/api/cron/report", "schedule": "0 9 * * *" }, { "path": "/api/cron/daily", "schedule": "30 2 * * *" }, { "path": "/api/cron/discover", "schedule": "45 1 * * *" } ] }
 JSON
 
 echo "done -> .vercel/output ready for: bunx vercel deploy --prebuilt"

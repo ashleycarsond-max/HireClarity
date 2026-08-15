@@ -20,6 +20,8 @@
  */
 
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+import { boardRefFromUrl, isTestArtifactBoardId, isTestArtifactName } from "./companies";
+import type { BoardKind } from "./boards";
 import type { CheckRecord, PayInfo, PostingEvent, PostingRecord, PostingRequirement } from "./types";
 
 /**
@@ -138,6 +140,22 @@ const SCHEMA_STATEMENTS: string[] = [
     generated_at TEXT NOT NULL,
     PRIMARY KEY (company, quarter)
   )`,
+  `CREATE TABLE IF NOT EXISTS discovery_candidates (
+    candidate_key   TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    board           TEXT NOT NULL,
+    board_id        TEXT NOT NULL,
+    career_url      TEXT,
+    source          TEXT NOT NULL DEFAULT 'curated',
+    status          TEXT NOT NULL DEFAULT 'pending',
+    jobs            INTEGER,
+    status_code     INTEGER,
+    note            TEXT,
+    last_checked_at TEXT,
+    verified_at     TEXT,
+    created_at      TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_dc_priority ON discovery_candidates(status, last_checked_at)`,
 ];
 
 // Lazy module-level client + schema init: shared by the CLI, the dev server
@@ -186,6 +204,31 @@ export interface WatchlistRow {
   lastAlertAt: string | null;
   /** The 30-day staleness milestone last alerted for this watch (0 = none yet). */
   staleMilestone: number;
+}
+
+/** One discovery_candidates row — the Neon-persisted registry-growth pool. */
+export interface DiscoveryCandidateRow {
+  /** "{board}:{boardId-lower}" (same key as candidates.ts candidateKey). */
+  candidateKey: string;
+  /** Public company display name. */
+  name: string;
+  board: BoardKind;
+  /** Board-native id: Greenhouse boardToken, Ashby org, Lever slug, Workable subdomain. */
+  boardId: string;
+  careerUrl: string | null;
+  /** Provenance of the row: curated | user-check | migration. */
+  source: string;
+  /** 'pending' or one of the 8 classify() reasons (verified/empty/http-404/...). */
+  status: string;
+  /** Last observed job count (null when the fetch failed or never ran). */
+  jobs: number | null;
+  statusCode: number | null;
+  note: string | null;
+  /** ISO timestamp of the last verification attempt (backoff clock). */
+  lastCheckedAt: string | null;
+  /** UTC date (YYYY-MM-DD) of the FIRST verified observation — set once. */
+  verifiedAt: string | null;
+  createdAt: string;
 }
 
 export function rowToRecord(r: Record<string, unknown>): PostingRecord {
@@ -1102,6 +1145,182 @@ export class Store {
   /** No-op: the Neon HTTP driver is stateless — nothing to close per request. */
   close(): void {
     // intentionally nothing
+  }
+
+  /* ------------------- discovery_candidates (registry growth pool) ------------------- */
+
+  private static DC_COLS =
+    "candidate_key, name, board, board_id, career_url, source, status, jobs, status_code, note, last_checked_at, verified_at, created_at";
+
+  private static rowToCandidate(row: Record<string, unknown>): DiscoveryCandidateRow {
+    return {
+      candidateKey: String(row.candidate_key),
+      name: String(row.name),
+      board: String(row.board) as BoardKind,
+      boardId: String(row.board_id),
+      careerUrl: row.career_url ? String(row.career_url) : null,
+      source: String(row.source),
+      status: String(row.status),
+      jobs: row.jobs == null ? null : Number(row.jobs),
+      statusCode: row.status_code == null ? null : Number(row.status_code),
+      note: row.note ? String(row.note) : null,
+      lastCheckedAt: row.last_checked_at ? String(row.last_checked_at) : null,
+      verifiedAt: row.verified_at ? String(row.verified_at) : null,
+      createdAt: String(row.created_at),
+    };
+  }
+
+  /**
+   * Priority-ordered slice of the discovery pool for one scheduled pass
+   * (mirrors listRequirementCandidates: host-capped PARTITION BY so one ATS
+   * host can't monopolize a run). Only DUE candidates are returned:
+   *   1. status='pending' — never checked yet (oldest created_at first),
+   *   2. failed statuses (404/empty/5xx/... ) whose last check is older than
+   *      30 days — companies switch ATSes, so failed guesses get retried,
+   *   3. status='verified' whose last check is older than 90 days (re-verify
+   *      backoff).
+   * `hostCap` (default 3) bounds each board's share — note all Greenhouse
+   * boards share boards-api.greenhouse.io, so the cap is per ATS host, which
+   * is exactly the `board` column.
+   */
+  async listDiscoveryCandidates(limit: number, hostCap = 3): Promise<DiscoveryCandidateRow[]> {
+    const sql = await this.ready();
+    const rows = await sql.query(
+      `SELECT ${Store.DC_COLS}
+       FROM (
+         SELECT dc.*,
+                row_number() OVER (
+                  PARTITION BY dc.board
+                  ORDER BY dc.priority, dc.sort_ts, dc.candidate_key
+                ) AS rn
+         FROM (
+           SELECT dc.*,
+                  CASE
+                    WHEN dc.status = 'pending' THEN 0
+                    WHEN dc.status <> 'verified'
+                      AND (dc.last_checked_at IS NULL OR dc.last_checked_at::timestamptz < now() - interval '30 days') THEN 1
+                    WHEN dc.status = 'verified'
+                      AND (dc.last_checked_at IS NULL OR dc.last_checked_at::timestamptz < now() - interval '90 days') THEN 2
+                    ELSE 3
+                  END AS priority,
+                  CASE WHEN dc.status = 'pending' THEN dc.created_at
+                       ELSE COALESCE(dc.last_checked_at, dc.created_at) END AS sort_ts
+           FROM discovery_candidates dc
+         ) dc
+         WHERE dc.priority <= 2
+       ) ranked
+       WHERE ranked.rn <= $2
+       ORDER BY ranked.priority, ranked.sort_ts, ranked.candidate_key
+       LIMIT $1`,
+      [limit, hostCap]
+    );
+    return rows.map(Store.rowToCandidate);
+  }
+
+  /**
+   * Every candidate whose last observed status was `verified` (sorted for
+   * determinism) — the read behind buildRegistry's "verified candidates"
+   * merge (design §4.4). A due-only slice cannot serve that: a company
+   * verified yesterday is NOT due for 90 days but MUST stay in the registry.
+   */
+  async listVerifiedDiscoveryCandidates(): Promise<DiscoveryCandidateRow[]> {
+    const sql = await this.ready();
+    const rows = await sql.query(
+      `SELECT ${Store.DC_COLS} FROM discovery_candidates
+       WHERE status = 'verified'
+       ORDER BY name, candidate_key`
+    );
+    return rows.map(Store.rowToCandidate);
+  }
+
+  /**
+   * Insert or update one discovery candidate. The upsert path (used by the
+   * scheduled slice) records the latest honest observation; `verified_at` is
+   * set ONLY on the transition to verified and only when unset (first
+   * verified observation wins — a later re-verify keeps the original date),
+   * and `source` keeps the original provenance (curated | user-check |
+   * migration). With `insertOnly=true` (used by the pool seeder) an existing
+   * key is left completely untouched (INSERT ... ON CONFLICT DO NOTHING) and
+   * the method returns whether a row was created.
+   */
+  async upsertDiscoveryCandidate(row: DiscoveryCandidateRow, insertOnly = false): Promise<boolean> {
+    const sql = await this.ready();
+    if (insertOnly) {
+      const rows = await sql.query(
+        `INSERT INTO discovery_candidates (${Store.DC_COLS})
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         ON CONFLICT (candidate_key) DO NOTHING
+         RETURNING candidate_key`,
+        Store.candidateToRow(row)
+      );
+      return rows.length > 0;
+    }
+    await sql.query(
+      `INSERT INTO discovery_candidates (${Store.DC_COLS})
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       ON CONFLICT (candidate_key) DO UPDATE SET
+         name            = EXCLUDED.name,
+         career_url      = COALESCE(EXCLUDED.career_url, discovery_candidates.career_url),
+         source          = discovery_candidates.source,
+         status          = EXCLUDED.status,
+         jobs            = EXCLUDED.jobs,
+         status_code     = EXCLUDED.status_code,
+         note            = EXCLUDED.note,
+         last_checked_at = EXCLUDED.last_checked_at,
+         verified_at     = CASE WHEN EXCLUDED.status = 'verified'
+                                THEN COALESCE(discovery_candidates.verified_at, EXCLUDED.verified_at)
+                                ELSE discovery_candidates.verified_at END`,
+      Store.candidateToRow(row)
+    );
+    return false;
+  }
+
+  private static candidateToRow(r: DiscoveryCandidateRow): unknown[] {
+    return [
+      r.candidateKey, r.name, r.board, r.boardId, r.careerUrl ?? null, r.source, r.status,
+      r.jobs, r.statusCode, r.note, r.lastCheckedAt, r.verifiedAt, r.createdAt,
+    ];
+  }
+
+  /**
+   * EXPLICIT user-check auto-discovery hook (design §4.4): every /check of a
+   * supported board URL adds a `pending` candidate (source 'user-check') with
+   * ON CONFLICT DO NOTHING, so the next daily discovery pass verifies it live.
+   * No-op (returns false) for non-board URLs, loopback fixtures, existing
+   * keys, and denylisted test artifacts (TestCo/acme fixtures).
+   */
+  async ensureDiscoveryCandidateFromPosting(record: PostingRecord): Promise<boolean> {
+    if (!record.canonicalUrl) return false;
+    const ref = boardRefFromUrl(record.canonicalUrl);
+    if (!ref) return false;
+    const name = (record.company ?? "").trim() || ref.boardId;
+    if (isTestArtifactName(name) || isTestArtifactBoardId(ref.boardId)) return false;
+    const key = `${ref.board}:${ref.boardId.toLowerCase()}`;
+    const sql = await this.ready();
+    const rows = await sql.query(
+      `INSERT INTO discovery_candidates (${Store.DC_COLS})
+       VALUES ($1, $2, $3, $4, NULL, 'user-check', 'pending', NULL, NULL, NULL, NULL, NULL, $5)
+       ON CONFLICT (candidate_key) DO NOTHING
+       RETURNING candidate_key`,
+      [key, name, ref.board, ref.boardId, new Date().toISOString()]
+    );
+    return rows.length > 0;
+  }
+
+  /** Pool status counts (SELECT status, count(*) GROUP BY status). */
+  async discoveryPoolSummary(): Promise<Record<string, number>> {
+    const sql = await this.ready();
+    const rows = await sql.query(`SELECT status, COUNT(*) AS n FROM discovery_candidates GROUP BY status ORDER BY status`);
+    const out: Record<string, number> = {};
+    for (const r of rows) out[String(r.status)] = Number(r.n);
+    return out;
+  }
+
+  /** Count of candidates whose FIRST verified observation is on/after `isoDate` ("YYYY-MM-DD"). */
+  async newlyVerifiedSince(isoDate: string): Promise<number> {
+    const sql = await this.ready();
+    const rows = await sql.query(`SELECT COUNT(*) AS n FROM discovery_candidates WHERE verified_at >= $1`, [isoDate]);
+    return Number(rows[0]?.n ?? 0);
   }
 }
 

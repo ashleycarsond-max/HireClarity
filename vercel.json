@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/daily",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/discover",
+      "schedule": "45 1 * * *"
     }
   ]
 }

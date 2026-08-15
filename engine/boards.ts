@@ -23,13 +23,18 @@
  * as a structured {@link BoardFetchResult} — never thrown — so one broken board
  * can never take down a whole sync.
  *
- * HONESTY NOTE (verified live 2026-08-14): the Workable widget API sits behind
- * a bot challenge (HTTP 429 "Security challenge" — DataDome-style, even on
- * /robots.txt) for automated plain-HTTP access. The client is implemented per
- * the documented API and returns structured errors, but NO Workable account can
- * currently be verified/seeded, and syncs will report the 429 honestly until
- * that changes. This mirrors the LinkedIn/Indeed situation: we only track what
- * boards let us read.
+ * HONESTY NOTE (re-verified live 2026-08-15): the earlier "bot challenge"
+ * claim does NOT reproduce today — apply.workable.com/robots.txt fetches fine
+ * (no rules → allowed) and the widget API returns clean HTTP 404s for unknown
+ * accounts (10 probed subdomains: wizzair, onfido, cazoo, zapp, depop,
+ * skyscanner, tractable, transfergo, revolut, getaround); no 429 challenge was
+ * observed. Workable still has 0 accounts in the registry for an honest
+ * reason: no candidate, seed, or user check has ever produced a real Workable
+ * board ref, so nothing probes a valid account. The client is implemented per
+ * the documented API and parses jobs correctly; it would work if a real
+ * subdomain were registered. Until then, Workable boards report 0 accounts
+ * and syncs label coverage as our observed sample. This mirrors the
+ * LinkedIn/Indeed situation: we only track what boards let us read.
  */
 
 import { politeFetch } from "./fetch";

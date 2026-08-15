@@ -16,6 +16,8 @@
     "sync-chunk": "bun run engine/cli.ts sync-chunk",
     "sync-test": "bun run engine/cli.ts sync-test",
     "discover": "bun run engine/cli.ts discover",
+    "discovery-slice": "bun run engine/cli.ts discovery-slice",
+    "seed-candidates": "bun run engine/cli.ts seed-candidates",
     "signals": "bun run engine/cli.ts signals",
     "score": "bun run engine/cli.ts score",
     "report-generate": "bun run engine/cli.ts report-generate",
@@ -36,6 +38,7 @@
     "billing-simulate": "bun run engine/billing-tool.ts simulate",
     "auth-test": "bun run engine/auth-test.ts",
     "watchlist-test": "bun run engine/watchlist-test.ts",
+    "discovery-sync-test": "bun run engine/discovery-sync-test.ts",
     "report-daily-test": "bun run engine/report-daily-test.ts",
     "company-bench-test": "bun run engine/company-bench-test.ts",
     "company-report-test": "bun run engine/company-report-test.ts"
