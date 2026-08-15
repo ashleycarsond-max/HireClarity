@@ -4,14 +4,16 @@
  *  - Resolves access through the route's verifyAccess server fn, which reads
  *    the hc_session cookie server-side (httpOnly — the client can't fake it)
  *    and checks the subscriptions + usage tables in Neon.
- *  - /check (tier "seeker"): signed-out → "sign in" panel; signed-in with an
- *    active Job Seeker subscription → unlimited; signed-in without one → the
- *    free tier (5 scored checks/month); at the monthly limit → honest upgrade
- *    panel with the checkout CTA. The limit is ALSO enforced inside the check
- *    server fn itself, so it can't be bypassed client-side.
- *  - /company (tier "company"): only an active Company subscription unlocks
- *    it — the free tier does NOT unlock the company dashboard. Copy is honest
- *    about that.
+ *  - There is ONE product: HireClarity Data, $9/month for everyone (owner
+ *    decision 2026-08-14 — the former Company tier is RETIRED). /check
+ *    (tier "seeker"): signed-out → "sign in" panel; signed-in with an active
+ *    subscription → unlimited; signed-in without one → the free tier (5 scored
+ *    checks/month); at the monthly limit → honest upgrade panel with the
+ *    checkout CTA. The limit is ALSO enforced inside the check server fn
+ *    itself, so it can't be bypassed client-side.
+ *  - tier is "seeker" only now. Any other value (e.g. the retired "company"
+ *    tier) FAILS CLOSED: the gate renders an honest "no longer sold" panel and
+ *    never the children.
  *  - "Sign out" calls POST /api/auth/logout (deletes the session row + clears
  *    the cookie) and re-checks access.
  */
@@ -23,8 +25,8 @@ export type AccessResult = {
   gated: boolean;
   allowed: boolean;
   error?: string;
-  /** Why the user is gated: needs sign-in, monthly free limit hit, or no
-   *  subscription for a tier the free tier doesn't unlock. */
+  /** Why the user is gated: needs sign-in, monthly free limit hit, or an
+   *  unknown (retired) tier. */
   reason?: "signin" | "limit" | "nosub" | "unknown-tier";
   /** How access is granted when allowed: unlimited (paid) or free (5/mo). */
   plan?: "unlimited" | "free";
@@ -32,18 +34,12 @@ export type AccessResult = {
   checksRemaining?: number;
 };
 export type VerifyFn = (opts: { data: { tier: string } }) => Promise<AccessResult>;
-const TIER_COPY: Record<"seeker" | "company", { tool: string; plan: string; price: string; tierName: string }> = {
+const TIER_COPY: Record<"seeker", { tool: string; plan: string; price: string; tierName: string }> = {
   seeker: {
-    tool: "the job-seeker check tool",
-    plan: "a Job Seeker subscription",
+    tool: "the check tool",
+    plan: "a HireClarity Data subscription",
     price: "$9/month",
-    tierName: "Job Seeker",
-  },
-  company: {
-    tool: "the company posting-health dashboard",
-    plan: "a Company subscription",
-    price: "$149/month",
-    tierName: "Company",
+    tierName: "HireClarity Data",
   },
 };
 type GateState =
@@ -60,10 +56,35 @@ export function SubscriptionGate({
   verify,
   children,
 }: {
-  tier: "seeker" | "company";
+  tier: "seeker";
   verify: VerifyFn;
   children: ReactNode;
 }) {
+  // Fail closed, BEFORE any hooks: the retired "company" tier (and anything
+  // else) is not a valid input anymore — render an honest panel, never the
+  // children, and never run the hook pipeline for it.
+  if (tier !== "seeker") {
+    return (
+      <section aria-label="Product retired" className="mx-auto mt-10 max-w-xl px-4 sm:px-6">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-xl shadow-indigo-950/5 sm:p-10">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+            That product is no longer available
+          </h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600">
+            The separate Company product was retired (owner decision 2026-08-14). There is one
+            product now — HireClarity Data, $9/month for everyone. Everything we track is already
+            public and free; unlimited checks, watchlists and alerts are the $9 product.
+          </p>
+          <a
+            href="/#pricing"
+            className="mt-6 inline-flex rounded-full bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/25 transition-colors hover:bg-indigo-700"
+          >
+            See pricing
+          </a>
+        </div>
+      </section>
+    );
+  }
   const [state, setState] = useState<GateState>({ phase: "resolving" });
   const [access, setAccess] = useState<AccessResult | null>(null);
   const [signInEmail, setSignInEmail] = useState("");
@@ -213,14 +234,10 @@ export function SubscriptionGate({
   }
   const heading = atLimit
     ? "You've used your 5 free checks this month"
-    : tier === "seeker"
-      ? "Sign in to check postings"
-      : "Subscribe to continue";
+    : "Sign in to check postings";
   const body = atLimit
-    ? "Your 5 free posting checks for this month are used up. Job Seeker is $9/month for unlimited checks, watchlists and alerts — no trial. Subscribe to keep checking."
-    : tier === "seeker"
-      ? "Your first 5 posting checks each month are free — sign in to start. For unlimited checks, watchlists and alerts, Job Seeker is $9/month. Published scores stay free and public either way."
-      : "The company posting-health dashboard is for active Company subscribers — $149/month. Your own data, private: your posting-health scores, hiring trends, external job tracking, alerts on any listing with confidence below 80, job posting clean-up, competitor benchmarking, and confidential quarterly reports. The free tier covers 5 posting checks on the check tool; it doesn't unlock this dashboard. Sign in with the email you subscribed with, or subscribe below.";
+    ? "Your 5 free posting checks for this month are used up. HireClarity Data is $9/month for unlimited checks, watchlists and alerts — no trial. Subscribe to keep checking."
+    : "Your first 5 posting checks each month are free — sign in to start. For unlimited checks, watchlists and alerts, HireClarity Data is $9/month — the same product for job seekers and companies. Published scores stay free and public either way.";
   return (
     <section aria-label="Subscribe to continue" className="mx-auto mt-10 max-w-xl px-4 sm:px-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-xl shadow-indigo-950/5 sm:p-10">

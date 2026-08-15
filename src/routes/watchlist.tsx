@@ -15,7 +15,7 @@ export const Route = createFileRoute("/watchlist")({
       {
         name: "description",
         content:
-          "Your watched postings: live/removed/relisted status, days listed, and the last alert we sent. Watchlists and alerts are part of Job Seeker — $9/month.",
+          "Your watched postings: live/removed/relisted status, days listed, and the last alert we sent. Watchlists and alerts are part of HireClarity Data — $9/month.",
       },
       { name: "robots", content: "noindex, nofollow" },
       { property: "og:type", content: "website" },
@@ -58,8 +58,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Load the signed-in user's watchlist. HARD seeker gate — no early-access
- * bypass: watchlists are a paid Job Seeker feature and the free tier stays
- * check-only. Identity ALWAYS from the hc_session cookie (httpOnly).
+ * bypass: watchlists and alerts are part of the $9 HireClarity Data product
+ * and the free tier stays check-only. Identity ALWAYS from the hc_session
+ * cookie (httpOnly).
  */
 const loadWatchlist = createServerFn({ method: "POST" }).handler(async (): Promise<WatchlistResult> => {
   let sessionEmail: string | null = null;
@@ -228,12 +229,12 @@ function WatchlistGate({ reason }: { reason: "signin" | "nosub" }) {
           </svg>
         </div>
         <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-slate-900">
-          {reason === "signin" ? "Sign in to see your watchlist" : "Watchlists are part of Job Seeker"}
+          {reason === "signin" ? "Sign in to see your watchlist" : "Watchlists are part of HireClarity Data"}
         </h1>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600">
           {reason === "signin"
             ? "Your watchlist is tied to your account. Sign in with the email you subscribed with — or subscribe below if you haven't yet."
-            : "Watchlists and alerts are part of Job Seeker — $9/month. We watch postings you check and email you the moment one is taken down, relisted, or goes stale. The free tier stays check-only; published scores stay free and public."}
+            : "Watchlists and alerts are part of HireClarity Data — $9/month. We watch postings you check and email you the moment one is taken down, relisted, or goes stale. The free tier stays check-only; published scores stay free and public."}
         </p>
         {reason === "signin" && (
           <form className="mt-8 flex flex-col gap-3" onSubmit={(e) => void requestLink(e)}>

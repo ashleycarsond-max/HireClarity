@@ -173,8 +173,8 @@ function ReportsIndexPage() {
               not the whole job market.
             </li>
             <li>
-              Companies appear only as a count. Individual company reports stay private behind the Company
-              subscription.
+              Companies appear only as a count. Everything we track per company is public on its
+              company page — there's no separate private company product right now.
             </li>
             <li>
               Each published snapshot carries a "data as of" label. During our first 6 months the current

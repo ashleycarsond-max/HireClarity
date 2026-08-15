@@ -8,7 +8,11 @@
  * endpoint acknowledges without recording).
  *
  * Key design points (full detail in /home/team/shared/billing-README.md):
- *  - TIERS: seeker -> $9/mo (900 cents), company -> $149/mo (14900 cents).
+ *  - TIERS: the ONE product — seeker -> $9/mo (900 cents). The former Company
+ *    tier (monthly, at the retired higher price) was RETIRED (owner decision
+ *    2026-08-14): TIERS contains only the single $9 product, so
+ *    ensurePrice("company") throws and nothing can ever create/checkout the
+ *    retired price again.
  *  - ensurePrice() is idempotent: products/prices are looked up by the
  *    `hireclarity_tier` metadata key before anything is created, and price IDs
  *    are cached in Neon (`stripe_meta` table) so repeated calls are cheap.
@@ -23,18 +27,17 @@ import Stripe from "stripe";
 import { normalizeEmail } from "../lib/email";
 import { appendSubscriptionEvent, isoNow, upsertSubscription } from "./subscriptions";
 
-export type SubscriptionTier = "seeker" | "company";
+export type SubscriptionTier = "seeker";
 
 export const TIERS: Record<
   SubscriptionTier,
   { productName: string; amountCents: number }
 > = {
-  seeker: { productName: "HireClarity Data — Job Seeker", amountCents: 900 }, // $9/mo (owner decision 2026-08-14)
-  company: { productName: "HireClarity Data — Company", amountCents: 14900 }, // $149/mo
+  seeker: { productName: "HireClarity Data", amountCents: 900 }, // $9/mo — the ONE product for everyone (owner decision 2026-08-14)
 };
 
 export function isTier(t: unknown): t is SubscriptionTier {
-  return t === "seeker" || t === "company";
+  return t === "seeker";
 }
 
 export function isBillingConfigured(): boolean {

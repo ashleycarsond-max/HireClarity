@@ -84,7 +84,7 @@ const faqJsonLd = {
       name: "How much does HireClarity Data cost?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Free: all published data is free and public — every posting's confidence score and history — plus 5 checks a month with sign-in. Job Seeker: $9/month for unlimited checks, watchlists and alerts. Company: $149/month for your own private analytics. No trial.",
+        text: "Free: all published data is free and public — every posting's confidence score and history — plus 5 checks a month with sign-in. HireClarity Data: $9/month for everyone — unlimited checks, watchlists and alerts. No trial.",
       },
     },
   ],

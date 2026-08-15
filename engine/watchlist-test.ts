@@ -276,7 +276,7 @@ async function run(): Promise<void> {
     check("free-tier add -> 403", freeRes?.status, 403);
     const freeBody = (await freeRes?.json()) as { error?: string; code?: string };
     check("free-tier paywall code", freeBody?.code, "paywall");
-    checkTrue("paywall mentions Job Seeker", (freeBody?.error ?? "").includes("Job Seeker"));
+    checkTrue("paywall mentions HireClarity Data", (freeBody?.error ?? "").includes("HireClarity Data"));
     checkTrue("free user has no watch row", (await store.listWatches(freeEmail)).length === 0);
 
     // Active Job Seeker -> 200, watch created.
@@ -330,7 +330,7 @@ async function run(): Promise<void> {
     await store.addWatch(nonSubEmail, p);
     await sql.query(`UPDATE watchlists SET created_at = $2 WHERE user_email = $1 AND posting_id = $3`, [nonSubEmail, iso(changedAt - 60_000), p]);
     const r1 = await runWatchlistAlertPass(store, { now: new Date() });
-    checkTrue("non-subscriber skipped", r1.skipped.some((s) => s.reason === "no active Job Seeker subscription"));
+    checkTrue("non-subscriber skipped", r1.skipped.some((s) => s.reason === "no active HireClarity Data subscription"));
     const w1 = await store.listWatches(nonSubEmail);
     check("non-subscriber last_alert_at stays null", w1[0]?.lastAlertAt, null);
 

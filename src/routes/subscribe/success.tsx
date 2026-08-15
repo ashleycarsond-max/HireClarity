@@ -64,14 +64,14 @@ function SuccessPage() {
                   <span>
                     <strong className="text-slate-900">Access is tied to your email.</strong>{" "}
                     Keep the email you checked out with — that's how subscription access is
-                    verified on the check tool and company dashboard.
+                    verified on the check tool.
                   </span>
                 </li>
                 <li className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <span aria-hidden="true" className="mt-0.5 shrink-0">💳</span>
                   <span>
-                    <strong className="text-slate-900">Billed monthly.</strong> Job Seeker is
-                    $9/month, Company is $149/month. No trial, no hidden fees — cancel
+                    <strong className="text-slate-900">Billed monthly.</strong> HireClarity Data is
+                    $9/month — one product for everyone, same specs. No trial, no hidden fees — cancel
                     anytime from the Stripe email.
                   </span>
                 </li>

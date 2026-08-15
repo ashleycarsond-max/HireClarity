@@ -3,7 +3,7 @@
  * modules; talks to the POST /api/stripe/checkout endpoint via fetch).
  */
 
-export type Tier = "seeker" | "company";
+export type Tier = "seeker";
 
 export type CheckoutResponse =
   | { ok: true; url: string }
