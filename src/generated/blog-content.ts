@@ -15,6 +15,93 @@ export interface BlogPost {
 
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "why-dont-job-postings-list-salary",
+    title: "Why Don't Job Postings List Salary? What a Missing Pay Range Means",
+    description: "Why don't job postings list salary? Learn what a posting without a pay range tells you, what the data shows, and how to check any posting.",
+    date: "2026-08-18",
+    keywords: ["why don't job postings list salary","job posting no salary","job posting without pay range","pay transparency"],
+    readingTimeMinutes: 6,
+    ctaTitle: "Check what a posting reveals about pay",
+    ctaBody: "Paste a job posting URL into the free check tool to see whether it lists pay — and whether pay matches across every board listing we track",
+    bodyMd: `The role looks right, the team sounds right, the location works. Then you reach the compensation section and find the one thing every job seeker wants most: nothing. No range, no figure, no "competitive." A job posting without a salary is common enough to feel normal — but it doesn't have to be a dead end. Here's why pay gets left out, what the tracked data can now measure, and what to do next.
+
+## Why postings leave pay out
+
+- **Room to negotiate.** Many hiring teams believe a published range locks them into a number before the first conversation.
+- **Internal equity.** Pay bands are often in flux, and companies worry that a public range will collide with what current employees earn.
+- **Competitive secrecy.** Some employers don't want rivals pricing their roles from public postings.
+- **Inertia.** The description was copied from a template that never listed pay, and nobody updated it.
+- **The template predates the law.** The description was written years ago and reposted as-is; compliance never caught up.
+
+Whatever the reason, the posting made a choice. Compensation is one of the few facts a listing could state with certainty, so omitting it is a decision, not an accident. And the legal ground is shifting under the old habits: pay transparency laws in a growing list of US states and in the EU now require ranges on posted roles, so "we can't say" becomes less defensible every year.
+
+## What the data can now measure
+
+This is where tracking comes in. HireClarity Data tracks roughly 8,000 live postings across about 90 companies, re-reviewing each one every few hours on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus public company career pages. As of mid-August 2026, every posting we track carries a pay signal: whether it lists pay at all, and whether the pay shown is consistent across every board and listing we see for the same role. A role that quotes one range on its career page and a different range — or no range — on a board is a cross-listing conflict, and conflicts like that are a recognized tell of a posting that isn't being managed honestly.
+
+The pay signal is brand new, so we aren't quoting a share of postings-with-pay yet — the number won't be stable until history accumulates, and we'd rather label a blank than invent a figure. It will appear in the free monthly report the moment it's worth publishing; the August 2026 edition is live at https://hireclarity-data.vercel.app/reports/2026-08. And like every number we publish, it will be labeled as our observed sample — LinkedIn and Indeed restrict automated access and are not part of it.
+
+## What a missing range means for you
+
+- It doesn't mean the role is fake. Real postings omit pay all the time.
+- It does mean the company is withholding something it already knows. Whether that bothers you is your call — for many candidates it's a factor, not a dealbreaker.
+- Ask early, not late. If you apply, get the range in the first conversation; a company that names a number early is signaling it can. Range questions are normal at every seniority level; a good employer expects them.
+- If you're in a state with a pay transparency law, a missing range may itself be a compliance flag worth noting.
+
+## How to use the pay signal
+
+- Check the posting's pay signal in the free check tool: listed or not, and consistent across boards or not.
+- Treat a cross-listing pay conflict as a caution flag. The same role should describe the same job — including the pay.
+- Combine it with the other signals — listing age and relist history — rather than judging on pay alone.
+
+For the full checklist of what separates a live posting from a ghost, our guide on how to tell if a job posting is real walks through each signal: /blog/is-this-job-posting-real.
+
+A missing salary is rarely proof of a ghost job — it's proof that the posting is withholding something it knows. Pay transparency is spreading by law and by culture, and unlike most hiring debates, it's measurable. Scores populate as history builds, and every tracked posting is re-checked every few hours. The free tier covers five checks a month with sign-in; the $9 product adds unlimited checks, watchlists, and alerts. The more applicants can see what a posting reveals — and what it chooses to hide — the better every application gets.`,
+  },
+  {
+    slug: "why-do-companies-repost-job-postings",
+    title: "Why Do Companies Repost Job Postings? What a Repost Means",
+    description: "Why do companies repost job postings? Learn what a reposted job means, what our tracking data shows, and how to check any posting for free.",
+    date: "2026-08-17",
+    keywords: ["why do companies repost job postings","reposted job posting","job posting reposted","ghost job"],
+    readingTimeMinutes: 6,
+    ctaTitle: "See if a posting has been reposted",
+    ctaBody: "Paste a job posting URL into the free check tool and see take-down and relist history from our observed sample",
+    bodyMd: `You see it on your second pass through the listings: the same role that was there two weeks ago, same title, same requirements — posted again as if for the first time. Maybe the date refreshed. Maybe the posting vanished for a while and then came back. Either way, a reposted job posting is one of the clearest signals a job board offers — once you know how to read it.
+
+## What a repost actually is
+
+A repost is a posting that disappears and reappears with the same title and requirements. It isn't always a problem. Sometimes the first round of a search simply didn't produce a hire, and the team relaunched the listing. Sometimes an applicant tracking system renewed the posting automatically — many ATS products republish or extend listings by default, with no human decision involved. And sometimes the posting is being recycled: the role was filled or frozen, and the listing is kept fresh so it keeps collecting applications.
+
+Same mechanics, very different motives. The repost itself can't tell you which case you're in. Only observation over time can.
+
+## Why companies repost
+
+- **The search was relaunched.** Round one ended without a hire, so the team refreshed the posting and started again. This is genuine hiring.
+- **The ATS renewed it.** Many applicant tracking systems republish or extend postings by default. The posting came back without anyone deciding anything.
+- **The date was refreshed.** Same posting, new date, same reality — the listing was dusted off to look current rather than managed.
+- **The posting is being recycled.** The role is filled or paused, but the listing is kept alive as a standing resume collector.
+
+None of these are sinister, and a single repost is not a verdict. But a posting that repeatedly vanishes and reappears with the same title and requirements is a pattern worth noticing.
+
+## What the data shows
+
+HireClarity Data tracks roughly 8,000 live postings across about 90 companies, re-reviewing each one every few hours on ATS-hosted boards like Greenhouse, Ashby, Lever, and Workable, plus public company career pages. Because we observe continuously rather than once, take-downs and relists are events we can count, not anecdotes. As of August 15, 2026, we have detected 76 take-downs: postings we were tracking that were removed, at companies including Gusto, Snowflake, GitLab, Okta, Anthropic, Reddit, and Twilio. Removals are normal. Roles get filled, searches close, and a board that changes is a board that's alive.
+
+Completed relist cycles — a posting we observed live, watched disappear, and then saw come back with the same title and requirements — currently stand at zero. That's not an empty finding; it's an honest one. A full cycle takes time: our hourly re-observation has been running only since mid-August 2026, so no posting has yet had enough history to disappear and reappear while we watched. Every take-down we log is a candidate for a relist, so the count will populate as the weeks add up — and the free monthly report at https://hireclarity-data.vercel.app/reports/2026-08 will show it. We'd rather publish a truthful zero than an invented number.
+
+## What to do when you see a repost
+
+- Don't assume the worst. A reposted posting can be a genuinely relaunched search with a real team behind it.
+- Compare it with the company's other postings. Is the whole board cycling, or just this one listing?
+- Watch for the pattern, not the event. One repost is ambiguous; repeated vanish-and-reappear cycles are the tell.
+- Run the URL through the free check tool and read the posting's take-down and relist history from our observed sample, alongside a confidence score with plain-language reasons.
+
+If a posting's age is also in question, our guide on why job postings stay up so long covers the rest of the pattern: /blog/why-do-job-postings-stay-up-so-long.
+
+A repost is not a verdict — it's a question with two answers: the company is still hiring for that role, or the posting is being kept alive for reasons unrelated to hiring. The only honest way to tell is to watch the posting over time. That's the point of the tracking. The free tier covers five checks a month with sign-in; the $9 product adds unlimited checks, watchlists, and alerts when postings go stale, get relisted, or vanish. The more applicants can see which postings are actually alive, the less time everyone wastes on the ones that aren't.`,
+  },
+  {
     slug: "is-this-job-posting-real",
     title: "How to Tell If a Job Posting Is Real",
     description: "Wondering how to tell if a job posting is real? Learn the signs of a ghost job and how to check any posting with our free tool before you apply.",
