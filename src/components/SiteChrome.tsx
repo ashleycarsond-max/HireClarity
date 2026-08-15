@@ -64,6 +64,18 @@ export function SiteHeader() {
           >
             Check a posting
           </a>
+          <a
+            href="/reports"
+            className="hidden rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 hover:text-indigo-600 sm:inline-block"
+          >
+            Reports
+          </a>
+          <a
+            href="/data"
+            className="hidden rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 hover:text-indigo-600 sm:inline-block"
+          >
+            Data hub
+          </a>
           <div ref={dataRef} className="relative">
             <button
               type="button"

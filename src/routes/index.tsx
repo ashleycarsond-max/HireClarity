@@ -188,6 +188,8 @@ const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#job-seekers", label: "For job seekers" },
   { href: "#companies", label: "For companies" },
+  { href: "/reports", label: "Reports" },
+  { href: "/data", label: "Data hub" },
   { href: "#pricing", label: "Pricing" },
 ];
 
