@@ -42,7 +42,7 @@ These signs are useful, but they have a ceiling. A fresh posting can be a ghost 
 
 ## What the data shows
 
-That's where tracking comes in. HireClarity Data watches roughly 8,000 live postings across about 90 companies and re-reviews each one every few hours. Because we observe postings over time rather than once, we see things a single visit can't:
+That's where tracking comes in. HireClarity Data watches roughly 8,000 live postings across about 90 companies and re-reviewing each one every few hours. Because we observe postings over time rather than once, we see things a single visit can't:
 
 - **Listing duration.** How long a posting has been live, and how that compares with the company's other postings.
 - **Take-down and relist cycles.** A posting that disappears and reappears with the same title and requirements is often the same role being recycled — a pattern strongly associated with postings that aren't attached to real hiring.

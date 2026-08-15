@@ -23,7 +23,7 @@ const entries: UrlEntry[] = [
   { loc: `${ORIGIN}/`, changefreq: "weekly", priority: "1.0" },
   { loc: `${ORIGIN}/check`, changefreq: "weekly", priority: "0.9" },
   { loc: `${ORIGIN}/reports`, changefreq: "monthly", priority: "0.8" },
-  { loc: `${ORIGIN}/reports/2026-08`, changefreq: "never", priority: "0.7" },
+  { loc: `${ORIGIN}/reports/2026-08`, changefreq: "daily", priority: "0.7" },
   { loc: `${ORIGIN}/data`, changefreq: "weekly", priority: "0.8" },
   { loc: `${ORIGIN}/blog`, changefreq: "weekly", priority: "0.8" },
   { loc: `${ORIGIN}/companies`, changefreq: "weekly", priority: "0.7" },
