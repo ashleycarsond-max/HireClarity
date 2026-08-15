@@ -75,6 +75,13 @@ function SuccessPage() {
                     anytime from the Stripe email.
                   </span>
                 </li>
+                <li className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <span aria-hidden="true" className="mt-0.5 shrink-0">📈</span>
+                  <span>
+                    Scores populate as tracking history builds; your watched postings are re-checked every
+                    few hours.
+                  </span>
+                </li>
               </ul>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <a

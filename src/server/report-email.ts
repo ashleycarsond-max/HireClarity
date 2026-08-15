@@ -115,8 +115,8 @@ export function buildReportEmailContent(snapshot: ReportSnapshot, email: string)
 
   const text =
     `Hi,\n\n` +
-    `The first HireClarity Data job-market report is out — the honest, observed-sample numbers on ghost jobs and recycled postings.\n\n` +
-    `You're getting this because you asked to hear when the first report came out.\n\n` +
+    `The latest HireClarity Data job-market report is out — the honest, observed-sample numbers on ghost jobs and recycled postings.\n\n` +
+    `You're getting this because you signed up for our monthly public job-market report.\n\n` +
     `${period}, at a glance (our observed sample: ${p.totalTracked} postings we track across ${p.distinctCompanies} companies${
       snapshot.observation.windowDays > 0 ? `, watched over ${snapshot.observation.windowDays} day${snapshot.observation.windowDays === 1 ? "" : "s"}` : ""
     }):\n` +
@@ -131,8 +131,8 @@ export function buildReportEmailContent(snapshot: ReportSnapshot, email: string)
 
   const html =
     `<p>Hi,</p>` +
-    `<p>The first <strong>HireClarity Data job-market report</strong> is out — the honest, observed-sample numbers on ghost jobs and recycled postings.</p>` +
-    `<p><em>You're getting this because you asked to hear when the first report came out.</em></p>` +
+    `<p>The latest <strong>HireClarity Data job-market report</strong> is out — the honest, observed-sample numbers on ghost jobs and recycled postings.</p>` +
+    `<p><em>You're getting this because you signed up for our monthly public job-market report.</em></p>` +
     `<p><strong>${esc(period)}, at a glance</strong> (our observed sample: ${p.totalTracked} postings we track across ${p.distinctCompanies} companies${snapshot.observation.windowDays > 0 ? `, watched over ${snapshot.observation.windowDays} day${snapshot.observation.windowDays === 1 ? "" : "s"}` : ""}):</p>` +
     `<ul>` +
     `<li>${esc(liveLine)}</li>` +

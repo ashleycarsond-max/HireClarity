@@ -332,7 +332,6 @@ function Metadata({ score }: { score: PostingScore }) {
   );
 }
 
-/**
 function ResultCard({ score, firstLook, checkedAt }: { score: PostingScore; firstLook: FirstLook; checkedAt: string }) {
   const styles = LABEL_STYLES[score.label];
   return (

@@ -9,7 +9,7 @@ const SITE_URL = "https://hireclarity-data.vercel.app";
 
 const TITLE = "Tracked Companies: Observed Job Postings | HireClarity Data";
 const DESCRIPTION =
-  "The companies HireClarity Data actively monitors — observed postings on Greenhouse, Ashby and Lever boards, labeled as our observed sample. Individual confidence profiles stay behind the subscription.";
+  "The companies HireClarity Data actively monitors — observed postings on Greenhouse, Ashby, Lever and Workable boards, labeled as our observed sample. Every tracked company's confidence scores and posting histories are public and free.";
 
 const loadData = createServerFn({ method: "POST" }).handler(async () => {
   const store = new Store();
@@ -91,8 +91,10 @@ function CompaniesIndexPage() {
         <p className="mt-4 max-w-3xl text-lg leading-relaxed text-slate-600">
           <strong>Observed sample — companies we actively track.</strong> We monitor their public job boards and
           career pages daily and report exactly what we see: {companies.length} companies, {totalPostings.toLocaleString()}{" "}
-          tracked postings. LinkedIn and Indeed restrict automated access and are not tracked. Individual company
-          confidence profiles are a paid product.
+          tracked postings. LinkedIn and Indeed restrict automated access and are not tracked. Every tracked company's
+          scores and histories are public and free — unlimited checks, watchlists and alerts are the $9 product.
+          Scores populate as tracking history builds — every tracked posting is re-reviewed every few hours, so a
+          posting's score appears once it has enough history.
         </p>
 
         <div className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -129,7 +131,7 @@ function CompaniesIndexPage() {
         </div>
         <p className="mt-4 text-xs leading-relaxed text-slate-400">
           Observed sample — we report what we actually see on the boards we monitor; this is not a market-wide
-          census. The derived confidence score and health score are paid products.
+          census. Confidence scores are public and free.
         </p>
       </main>
       <SiteFooter />

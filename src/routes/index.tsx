@@ -262,7 +262,7 @@ function GhostScoreCard() {
           </p>
           <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-sm font-semibold text-rose-700">
             <Icon name="xcircle" className="h-4 w-4" />
-            High ghost risk
+            Strong ghost signals
           </p>
           <p className="mt-1.5 text-xs text-slate-400">Likely a dead end</p>
         </div>
@@ -333,7 +333,7 @@ function Hero() {
             </a>
           </div>
           <p className="mt-6 text-sm text-slate-400">
-            Every posting we track has a public confidence score — no sign-in needed. Sign in for 5 free checks a
+            Every posting we track gets a public confidence score — some are still gathering history and honestly show 'Insufficient data'. No sign-in needed. Sign in for 5 free checks a
             month, or go unlimited with HireClarity Data, $9/month. No trial.
           </p>
         </div>
@@ -432,8 +432,8 @@ function Problem() {
         </div>
 
         <p className="mt-10 max-w-2xl text-base text-slate-500">
-          Right now, nobody tracks this systematically. We're building the tool that does — so
-          job seekers can spot a ghost job at a glance, and companies can keep their postings
+          Nobody tracks this systematically at market scale — we do, and the data is free and public.
+          Job seekers can spot a ghost job at a glance, and companies can keep their postings
           honest.
         </p>
       </div>
@@ -445,8 +445,8 @@ function Solution() {
   const features = [
     {
       icon: "layers" as IconName,
-      title: "Every board, continuously",
-      body: "We track where a role appears across job boards and career pages, from the day it's first listed — so one posting can't hide behind a dozen copies of itself.",
+      title: "Every board we track",
+      body: "We track where a role appears across the ATS-hosted boards and career pages we monitor, from the day it's first listed — so one posting can't hide behind a dozen copies of itself.",
     },
     {
       icon: "calendar" as IconName,
@@ -461,7 +461,7 @@ function Solution() {
     {
       icon: "gauge" as IconName,
       title: "A clear confidence score",
-      body: "Every posting gets one number from 0 to 100 — high means \"likely a real, active role\", low means \"apply elsewhere\". The reasons are always shown.",
+      body: "Every posting we've watched long enough gets one number from 0 to 100 — high means \"likely a real, active role\", low means \"apply elsewhere\". Postings still gathering history honestly show 'Insufficient data' instead of a judgment. The reasons are always shown.",
     },
   ];
   return (
@@ -476,7 +476,7 @@ function Solution() {
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-slate-600">
             A confidence score isn't a snapshot or a guess — it's the result of watching
-            postings over time, across every board they appear on.
+            postings over time, across every board we track.
           </p>
         </div>
 
@@ -545,7 +545,7 @@ function HealthyScoreCard() {
           </p>
           <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-sm font-semibold text-emerald-700">
             <Icon name="check" className="h-4 w-4" />
-            Looks like a real role
+            Looks real
           </p>
           <p className="mt-1.5 text-xs text-slate-400">Worth applying to</p>
         </div>
@@ -646,7 +646,7 @@ function JobSeekers() {
               <a href="/check" className="font-semibold text-indigo-600 hover:underline">
                 try it with any posting URL
               </a>
-              . Watchlists and alerts arrive with the paid launch.
+              . Watchlists and alerts are part of HireClarity Data — $9/month.
             </p>
           </div>
           <div className="mx-auto w-full max-w-md">
@@ -673,7 +673,7 @@ function Companies() {
     {
       icon: "shield" as IconName,
       title: "Reputation protection, not finger-wagging",
-      body: "Insights stay private to your team and are framed to help. Our job is to make you look good to candidates and investors — never to call you out.",
+      body: "Everything we publish is public and framed to help — our job is to make you look good to candidates and investors, never to call you out. The $9 product adds unlimited checks, watchlists and alerts so your team can watch its own listings.",
     },
   ];
   return (
@@ -706,10 +706,10 @@ function Companies() {
               ))}
             </ul>
             <a
-              href="#get-access"
+              href="/companies"
               className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-base font-semibold text-slate-900 transition-colors hover:bg-slate-100"
             >
-              Get notified for companies
+              See how your company looks to candidates
               <Icon name="arrowRight" className="h-4 w-4" />
             </a>
           </div>
@@ -836,7 +836,7 @@ function SubscribeButton({ tier, accent }: { tier: Tier; accent: boolean }) {
         <p role="status" aria-live="polite" className="mt-3 text-center text-xs leading-relaxed text-slate-500">
           {state.message}{" "}
           <a href="#get-access" className="font-semibold text-indigo-600 hover:underline">
-            Join the early-access list instead
+            Join the report email list instead
           </a>
           .
         </p>
@@ -861,7 +861,7 @@ function Pricing() {
       price: "$0",
       cta: { kind: "link", href: "/companies", label: "Browse tracked companies" },
       features: [
-        "Every posting's confidence score and history — public, no sign-in",
+        "Every posting's confidence score and history — public, no sign-in. Postings still gathering history honestly show 'Insufficient data'",
         "5 posting checks a month with sign-in",
         "No card, no trial",
       ],
@@ -895,7 +895,8 @@ function Pricing() {
             HireClarity Data ($9/month, the same product for everyone) adds unlimited checks,
             watchlists and alerts — for job seekers who don't want to waste time on ghost postings,
             and for companies that want to see how candidates experience their listings. No trial —
-            cancel anytime, no questions asked.
+            cancel anytime, no questions asked. Scores populate as tracking history builds — postings are
+            re-reviewed every few hours, and honest 'not enough data yet' states are part of the design.
           </p>
         </div>
         <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
@@ -945,6 +946,10 @@ function Pricing() {
 }
 function Faq() {
   const faqs = [
+    {
+      q: "Do all postings have a score yet?",
+      a: "Scores populate as tracking history builds — a posting needs at least a few days of observations before the score moves off neutral. Postings we've just started watching honestly show 'Insufficient data'. Every tracked posting is re-reviewed every few hours, so scores firm up automatically as we watch.",
+    },
     {
       q: "What is a ghost job?",
       a: "A job posting that was never realistically going to be filled — listed for months, reposted to look fresh, spread across many boards, or left up after the role was cancelled.",
@@ -1045,13 +1050,13 @@ function EmailForm() {
         return {
           icon: "check" as IconName,
           cls: "border-emerald-200 bg-emerald-50 text-emerald-800",
-          msg: "Thanks — you're on the list. We'll email you when the first report is out.",
+          msg: "Thanks — you're on the list. We'll email you when the next monthly report is out.",
         };
       case "duplicate":
         return {
           icon: "info" as IconName,
           cls: "border-amber-200 bg-amber-50 text-amber-800",
-          msg: "You're already on the list — we'll be in touch with the first report.",
+          msg: "You're already on the list — we'll be in touch with the next report.",
         };
       case "error":
         return {
@@ -1117,8 +1122,8 @@ function EmailCapture() {
             Stay in the loop on ghost-job data.
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-slate-300">
-            One email when we publish our first public ghost-job report — no spam, no drip
-            campaigns. Join the list and we'll send it to you when it's out.
+            One email a month with our latest public ghost-job report — no spam, no drip
+            campaigns.
           </p>
         </div>
         <div className="mt-10">
@@ -1223,7 +1228,7 @@ function Footer() {
                 </a>
               </li>
               <li>
-                <a href="#get-access" className="transition-colors hover:text-white">
+                <a href="#pricing" className="transition-colors hover:text-white">
                   Pricing
                 </a>
               </li>

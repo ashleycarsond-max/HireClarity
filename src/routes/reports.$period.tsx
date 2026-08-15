@@ -736,7 +736,8 @@ function ReportPage() {
           <h2 className="text-2xl font-bold tracking-tight text-white">See it per posting, not just per market</h2>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-300">
             Paste any job posting URL for its confidence score and reasons — your first 5 checks each month are
-            free. Companies can see their own posting health behind the Company dashboard.
+            free. Companies can see their own postings the way candidates do — everything we track is public, and
+            the $9 product adds unlimited checks, watchlists and alerts.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <a
@@ -744,12 +745,6 @@ function ReportPage() {
               className="rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-500"
             >
               Check any posting — first 5 checks free
-            </a>
-            <a
-              href="/company"
-              className="rounded-full border border-slate-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:border-slate-400"
-            >
-              Company posting health
             </a>
           </div>
         </div>
