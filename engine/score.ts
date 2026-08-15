@@ -40,7 +40,23 @@
  *   R3 board spread ........... boardsSeen >= 3 → -20; >= 2 → -10
  *   R4 multi-URL identity ..... distinctPostingsInIdentity >= 3 → -20; >= 2 → -10
  *        R3 + R4 combined cap: -30 (spread and duplication are related signals)
+ *   R5 pay conflict (2026-08-15, owner decision) → -15
+ *        the same role states pay on 2+ listings we track and the bands
+ *        disagree (or the currencies differ). A real role has one real salary
+ *        band, so cross-listing pay conflicts are a ghost-job tell. Judged
+ *        only when 2+ listings actually state pay — missing pay is NEVER a
+ *        conflict and never a deduction.
  *   Total red points are clamped to 0–100.
+ *
+ * GREEN CREDIT (points added back; each must be observed, never assumed):
+ *   G1 pay listed (2026-08-15, owner decision) → +5 back, only when this
+ *        posting states pay AND the role has no pay conflict. Pay transparency
+ *        is a sign of an honest posting — a modest credit that offsets up to 5
+ *        points of observed red flags, never pushing a clean posting above 100
+ *        (the credit is capped at the current deduction total, so the net can
+ *        never go negative). The pay signal can therefore RAISE confidence
+ *        (pay listed), LOWER it (pay conflict), or leave it alone (pay not
+ *        stated / not checked yet) — never mechanically in one direction.
  *
  * LABELS (by final score):
  *   80–100  "Looks real"              | 50–79 "Watch it"
@@ -67,7 +83,8 @@
 
 import { Store } from "./store";
 import { buildSignals } from "./signals";
-import type { PostingSignals } from "./types";
+import { payConsistency } from "./pay";
+import type { PayInfo, PostingSignals } from "./types";
 
 export type EvidenceLevel = "low" | "medium" | "high";
 export type ScoreLabel = "Looks real" | "Watch it" | "Strong ghost signals" | "Insufficient data";
@@ -199,7 +216,10 @@ export async function companySignal(store: Store, company: string | null): Promi
  * here (no separate math), so the breakdown can never drift from the score.
  */
 export function scoreCore(
-  signals: Pick<PostingSignals, "postingId" | "status" | "relistCount" | "daysListed" | "boardsSeen" | "distinctPostingsInIdentity" | "events">,
+  signals: Pick<
+    PostingSignals,
+    "postingId" | "status" | "relistCount" | "daysListed" | "boardsSeen" | "distinctPostingsInIdentity" | "events" | "pay" | "payGroup"
+  >,
   checks: number
 ): { score: number; ghostEvidencePoints: number; label: ScoreLabel; verdict: string; insufficientData: boolean; evidence: EvidenceLevel; components: ScoreComponent[] } {
   const { status, relistCount, daysListed, boardsSeen, distinctPostingsInIdentity, events } = signals;
@@ -214,13 +234,35 @@ export function scoreCore(
   const boardPts = boardsSeen.length >= 2 ? (boardsSeen.length >= 3 ? 20 : 10) : 0;
   const rawUrlPts = distinctPostingsInIdentity >= 2 ? (distinctPostingsInIdentity >= 3 ? 20 : 10) : 0;
   // R3 + R4 are related signals (one role copied around) — combined cap at 30,
-  // and the overall red-flag total is clamped at 100. The URL factor absorbs
-  // the residual of both caps so per-factor points always sum to exactly the
-  // deduction the score reflects.
+  // and the overall red-flag total is clamped at 100. The URL factor (then the
+  // pay-conflict factor, for the rare combined case) absorbs the residual of
+  // the caps so per-factor points always sum to exactly the deduction the
+  // score reflects.
   let urlPts = Math.min(rawUrlPts, 30 - boardPts);
-  const redPts = relistPts + stalePts + boardPts + urlPts;
-  if (redPts > 100) urlPts = Math.max(0, urlPts - (redPts - 100));
-  const ghostEvidencePoints = Math.min(100, relistPts + stalePts + boardPts + urlPts);
+  const baseRed = relistPts + stalePts + boardPts + urlPts;
+
+  // ── Pay signals (owner decision 2026-08-15; rubric R5 + G1 above) ─────────
+  // The verdict is computed over the same-role pay group (identity ∩ same
+  // location when both declare one). Missing pay and "not checked yet" are
+  // NEVER deductions and NEVER conflicts — the signals say so honestly.
+  const payVerdict = payConsistency(signals.payGroup ?? []);
+  const payConflict = payVerdict.verdict === "conflict";
+  const payListed = Boolean(signals.pay?.hasPay && !signals.pay.fetchError);
+  let conflictPts = payConflict ? 15 : 0;
+  // G1: pay-listed credit — offsets up to 5 points of observed red flags, but
+  // only when there is no pay conflict, and never below a net of 0.
+  const creditPts = payListed && !payConflict ? Math.min(5, baseRed + conflictPts) : 0;
+
+  const rawNet = baseRed + conflictPts - creditPts;
+  const ghostEvidencePoints = Math.max(0, Math.min(100, rawNet));
+  if (rawNet > 100) {
+    // Absorb the excess over 100 into the URL factor first (legacy behavior),
+    // then the pay-conflict factor — keeps per-factor points summing exactly.
+    const excess = rawNet - 100;
+    const urlReduction = Math.min(urlPts, excess);
+    urlPts -= urlReduction;
+    conflictPts = conflictPts - Math.min(conflictPts, excess - urlReduction);
+  }
 
   let evidence: EvidenceLevel = checks >= 7 && daysListed >= 14 ? "high" : checks >= 3 && daysListed >= 3 ? "medium" : "low";
   if (hardSignal && evidence === "low") evidence = "medium";
@@ -249,6 +291,24 @@ export function scoreCore(
 
   // ── Components: every rubric factor, derived from the same computation ─────
   const urlCapApplied = urlPts < rawUrlPts;
+  const pay = signals.pay ?? null;
+  const payObserved = !pay
+    ? "Pay not checked yet — we'll read the posting on its next check."
+    : pay.fetchError
+      ? "Pay couldn't be read — the listing data was not readable."
+      : pay.hasPay
+        ? `States ${pay.payText ?? fmtBand(pay.payMin, pay.payMax, pay.currency, pay.period)}`
+        : "Not stated in the listing data we read";
+  const payVerdictText =
+    payVerdict.verdict === "consistent"
+      ? `Same pay on all ${payVerdict.payingListings} listings we track for this role`
+      : payVerdict.verdict === "conflict"
+        ? `Pay differs across the ${payVerdict.payingListings} listings we track (e.g. ${payGroupBands(signals.payGroup ?? [])})`
+        : payVerdict.verdict === "only-one-listing"
+          ? "Only one listing states pay — nothing to compare"
+          : payVerdict.verdict === "not-checked"
+            ? "Pay not checked yet — nothing to compare"
+            : "No listing states pay — nothing to compare";
   const components: ScoreComponent[] = [
     {
       signalId: "relist_cycles",
@@ -303,6 +363,40 @@ export function scoreCore(
             : "The same role is tracked at multiple URLs — duplication can inflate how active a role looks.",
     },
     {
+      signalId: "pay_listed",
+      label: "Pay listed",
+      observed: payObserved,
+      points: -creditPts, // negative = green credit (raises confidence)
+      maxPoints: 5,
+      reason:
+        payListed && !payConflict
+          ? "This posting states a pay range — pay transparency is a sign of an honest posting. It offsets up to 5 points of observed red flags."
+          : payListed && payConflict
+            ? "This posting states pay, but the same role lists different pay elsewhere — the conflict below dominates."
+            : !pay
+              ? "We haven't re-read this posting since pay tracking started — no read yet, no judgment."
+              : pay.fetchError
+                ? "We couldn't read the listing data to check for pay — reported honestly, never guessed."
+                : "No pay is stated in the listing data we read. That's common and honest — it neither helps nor hurts this score (a real role can still omit pay).",
+    },
+    {
+      signalId: "pay_consistent",
+      label: "Pay across listings",
+      observed: payVerdictText,
+      points: conflictPts,
+      maxPoints: 15,
+      reason:
+        payVerdict.verdict === "conflict"
+          ? "The same role is listed with different pay on different boards/URLs we track — a real role has one real salary band, so this is a ghost-job tell."
+          : payVerdict.verdict === "consistent"
+            ? "Pay matches across every listing we track for this role — that's what a genuine posting looks like."
+            : payVerdict.verdict === "only-one-listing"
+              ? "Pay consistency can only be judged when the same role appears on 2+ listings — we don't guess."
+              : payVerdict.verdict === "not-checked"
+                ? "Pay hasn't been read for the listings yet — no read, no judgment."
+                : "No listing states pay, so there's nothing to compare — missing pay is never counted as a conflict.",
+    },
+    {
       signalId: "observation_window",
       label: "Observation window",
       observed: `Watched ${checks} time${checks === 1 ? "" : "s"} over ${daysListed} day${daysListed === 1 ? "" : "s"}`,
@@ -319,6 +413,22 @@ export function scoreCore(
   ];
 
   return { score, ghostEvidencePoints, label, verdict, insufficientData, evidence, components };
+}
+
+/** Format an observed band like "$120,000–$150,000 per year" for the breakdown. */
+function fmtBand(min: number | null, max: number | null, currency: string | null, period: PayInfo["period"] | null): string {
+  const cur = currency ?? "";
+  const fmt = (n: number) => `${cur}${n.toLocaleString("en-US")}`;
+  const band = min != null && max != null ? `${fmt(min)} – ${fmt(max)}` : fmt(min ?? max ?? 0);
+  return period ? `${band} per ${period}` : band;
+}
+
+/** A short band summary for the conflict reason (e.g. "$120,000/yr vs $90,000/yr"). */
+function payGroupBands(rows: PayInfo[]): string {
+  const readable = rows.filter((r) => r.hasPay && !r.fetchError).slice(0, 3);
+  return readable
+    .map((r) => fmtBand(r.payMin, r.payMax, r.currency, r.period))
+    .join(" vs ");
 }
 
 /** Score one posting's signals against the rubric above. */
@@ -386,6 +496,26 @@ export async function scorePosting(store: Store, signals: PostingSignals): Promi
   }
   // R3 + R4 are related signals (one role copied around) — cap their combined weight at 30.
   spreadPts = Math.min(spreadPts, 30);
+
+  // ── Pay signals (owner decision 2026-08-15): red conflict + green credit ──
+  const payVerdict = payConsistency(signals.payGroup ?? []);
+  const payListed = Boolean(signals.pay?.hasPay && !signals.pay.fetchError);
+  if (payVerdict.verdict === "conflict") {
+    reasons.push({
+      kind: "red",
+      signal: "pay_consistent",
+      text: `The same role is listed with different pay on different boards/URLs we track — a real role has one real salary band.`,
+      points: 15,
+    });
+  }
+  if (payListed && payVerdict.verdict !== "conflict") {
+    reasons.push({
+      kind: "green",
+      signal: "pay_listed",
+      text: "The posting states a pay range — pay transparency is a sign of an honest posting.",
+      points: -5,
+    });
+  }
 
   // ── Evidence level + insufficiency (used for the reason texts; the return
   //    values come from scoreCore — same formulas, single source of truth) ─────
@@ -507,5 +637,7 @@ export const RUBRIC_SUMMARY: { name: string; points: string }[] = [
   { name: "Listed 90+ days with no observed change", points: "−15 to −30" },
   { name: "Same role on 2+ boards", points: "−10 to −20" },
   { name: "Same role at 2+ URLs", points: "−10 to −20 (spread+URLs capped at −30)" },
+  { name: "Pay differs across listings of the same role", points: "−15" },
+  { name: "Pay listed on this posting (no conflict)", points: "+5 back (offsets red flags)" },
   { name: "Insufficient observation (<3 checks or <3 days)", points: "neutral 50 — no read yet" },
 ];

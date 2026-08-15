@@ -41,6 +41,13 @@ export interface FirstLook {
   firstSeenAt: string;
   /** True when this check created the tracking record ("we've just started watching"). */
   isFirstObservation: boolean;
+  /**
+   * Honest pay read for this posting (owner decision 2026-08-15): the observed
+   * phrase when pay is stated, an explicit "not stated" when we read the
+   * listing and found none, or "not checked yet" when the listing hasn't been
+   * re-read since pay tracking started. Never a guess, never a deduction.
+   */
+  payNote: string;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -109,6 +116,18 @@ export async function buildFirstLook(store: Store, record: PostingRecord, observ
     }).length;
   }
 
+  // Honest pay read (owner decision 2026-08-15): only what this observation
+  // actually saw. The observe pipeline just wrote the pay row for this URL, so
+  // the note is fresh and factual.
+  const pay = await store.getPay(record.postingId);
+  const payNote = !pay
+    ? "Pay not checked yet — we'll read the posting on its next check."
+    : pay.fetchError
+      ? "Pay couldn't be read — the listing data was not readable."
+      : pay.hasPay
+        ? `States ${pay.payText ?? "a compensation range"} (${pay.period ? `per ${pay.period}` : "period not stated"})`
+        : "No pay stated in the listing data we read — that's common and never counted against it.";
+
   return {
     title: record.title,
     board: boardLabelFor(canonical),
@@ -122,5 +141,6 @@ export async function buildFirstLook(store: Store, record: PostingRecord, observ
     registryCount,
     firstSeenAt: record.firstSeenAt,
     isFirstObservation: observed.transition === "first_seen",
+    payNote,
   };
 }
