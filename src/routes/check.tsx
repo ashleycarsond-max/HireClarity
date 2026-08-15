@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { useEffect, useRef, useState } from "react";
+import { SiteHeader } from "../components/SiteChrome";
 import type { ReactNode } from "react";
 
 import type { PostingScore } from "../../engine/score";
@@ -294,31 +295,6 @@ function Icon({ name, className = "h-5 w-5" }: { name: IconName; className?: str
 }
 
 /* --------------------------------- header --------------------------------- */
-
-function Header() {
-  return (
-    <header className="border-b border-slate-200/70 bg-white/85 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <a href="/" className="flex items-center gap-2.5" aria-label="HireClarity Data home">
-          <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7 text-indigo-600" aria-hidden="true">
-            <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2" />
-            <path
-              d="M3.5 12h4l1.5-2.5 2.5 5 1.5-2.5h7.5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span className="text-lg font-bold tracking-tight text-slate-900">HireClarity Data</span>
-        </a>
-        <a href="/" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 hover:text-indigo-600">
-          Back to home
-        </a>
-      </div>
-    </header>
-  );
-}
 
 const REASON_ICONS: Record<string, IconName> = { red: "warning", green: "check", neutral: "info" };
 const REASON_COLORS: Record<string, string> = {
@@ -626,7 +602,7 @@ function CheckTool() {
 
   return (
     <>
-      <Header />
+      <SiteHeader />
       <main>
         <section className="relative overflow-hidden">
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-indigo-50/80 via-white to-white" />

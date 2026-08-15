@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { useEffect, useState } from "react";
+import { SiteHeader } from "../components/SiteChrome";
 
 import { Store } from "../../engine/store";
 import { currentUserEmail } from "../server/auth";
@@ -106,33 +107,6 @@ const loadWatchlist = createServerFn({ method: "POST" }).handler(async (): Promi
 });
 
 /* ---------------------------------- UI ---------------------------------- */
-
-function Header() {
-  return (
-    <header className="border-b border-slate-200/70 bg-white/85 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <a href="/" className="flex items-center gap-2.5" aria-label="HireClarity Data home">
-          <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7 text-indigo-600" aria-hidden="true">
-            <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2" />
-            <path
-              d="M3.5 12h4l1.5-2.5 2.5 5 1.5-2.5h7.5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span className="text-lg font-bold tracking-tight text-slate-900">HireClarity Data</span>
-        </a>
-        <nav className="flex items-center gap-3 text-sm font-semibold">
-          <a href="/check" className="rounded-full border border-slate-300 px-4 py-2 text-slate-700 transition-colors hover:border-indigo-300 hover:text-indigo-600">
-            Check a posting
-          </a>
-        </nav>
-      </div>
-    </header>
-  );
-}
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   live: { label: "Live", cls: "bg-emerald-50 text-emerald-700" },
@@ -412,7 +386,7 @@ function WatchlistPage() {
 
   return (
     <>
-      <Header />
+      <SiteHeader />
       <main className="bg-slate-50/60">
         <section className="mx-auto max-w-3xl px-4 pb-16 pt-12 sm:px-6">
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">My watchlist</h1>
