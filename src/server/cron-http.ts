@@ -57,21 +57,18 @@ async function handleSync(request: Request): Promise<Response> {
   }
   const started = Date.now();
   try {
-    // FULL-DESCRIPTION-COVERAGE sweep (owner direction 2026-08-15): every
-    // hourly sync pass ALSO reads descriptions for a bounded slice of live
-    // postings — never-extracted first, then stale (older than
-    // DESCRIPTION_STALE_AFTER_DAYS), then covered-oldest (rolling rotation).
-    // Runs FIRST so its completion never depends on how long the sync chunk
-    // took (each stage is resumable: the slice re-picks never-read first, and
-    // runSyncChunk persists its cursor per company). Budget default 25s
-    // (REQUIREMENTS_TIME_BUDGET_MS) so the 60s function limit always fits;
-    // the response reports the honest coverage counts (read / fetch-error /
-    // not-yet-extracted) that feed the daily snapshot's
-    // postingsWithDescriptionRead metric.
-    const req = await runRequirementsSlice(new Store(), {
-      limit: Number(process.env.REQUIREMENTS_PER_RUN) > 0 ? Number(process.env.REQUIREMENTS_PER_RUN) : 150,
-      timeBudgetMs: Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) > 0 ? Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) : 25_000,
-    });
+    // FULL-SCRUB SYNC CHUNK (registry scale-up, owner direction 2026-08-15):
+    // each invocation is bounded by SYNC_TIME_BUDGET_MS (default 45s) AND
+    // COMPANIES_PER_RUN, advancing the persisted company cursor — with 4
+    // invocations/hour (vercel.json `0,15,30,45 * * * *`) the WHOLE registry
+    // is re-observed every few hours at current size and the time budget
+    // keeps the run inside the serverless window as the registry grows (see
+    // engine/registry-scale-up.md for 200/500/1,000-company math).
+    //
+    // The description-coverage sweep moved OUT of this handler into its own
+    // /api/cron/requirements cron (every 30 min) so each pipeline stage gets
+    // its own full function window instead of sharing a 60s budget — the
+    // sweep is what kept this handler near the limit as coverage grew.
     const report = await runSyncChunk(new Store(), {});
     // Watchlist alert pass: inside the SAME guarded handler, after the sync
     // chunk. It re-reads the store (correct regardless of which chunk processed
@@ -87,8 +84,61 @@ async function handleSync(request: Request): Promise<Response> {
       registrySize: report.registrySize,
       cursor: report.cursor,
       remaining: report.remaining,
+      skippedBudget: report.skippedBudget,
       errors: report.errors,
       storeCount: report.storeCount,
+      syncElapsedMs: report.elapsedMs,
+      watchlist: {
+        evaluated: watch.evaluated,
+        sent: watch.sent,
+        skipped: watch.skipped,
+        failures: watch.failures,
+      },
+      elapsedMs: Date.now() - started,
+    });
+  } catch (err) {
+    // Log detail server-side (function logs); the caller gets an honest error.
+    console.error("[cron] /api/cron/sync failed:", err);
+    return json({ ok: false, error: "sync failed — see function logs" }, 500);
+  }
+}
+
+/**
+ * GET /api/cron/requirements — the FULL-DESCRIPTION-COVERAGE sweep cron
+ * (owner direction 2026-08-15: EVERY posting's description read, 100% on a
+ * rolling basis — registry scale-up).
+ *
+ * Guards: same fail-closed CRON_SECRET auth as the other cron paths.
+ *
+ * Schedule: every 30 minutes (`5,35 * * * *` — offset from the sync cron's
+ * :00/:15/:30/:45 slots so the two pipelines never overlap a host at the
+ * same instant). Runs the SAME bounded rolling sweep as `bun run
+ * requirements` (never-read first → stale → oldest-covered rotation; per-host
+ * cap; wall-clock budget), with its OWN full function window:
+ * REQUIREMENTS_TIME_BUDGET_MS (default 30s, concurrency 12 — the in-flight
+ * tail is bounded so the worst-case run stays inside the 60s window, see
+ * engine/requirements-sync.ts). 48 invocations/day × ~60-100 postings/run ≈
+ * 3,000-4,800 descriptions/day, which (a) closes the never-read gap in ~1-2
+ * days at current size (3,420/7,960 = 43% read live at 2026-08-17), and (b)
+ * holds the 7-day freshness rotation at registry sizes up to ~20,000 live
+ * postings (see engine/registry-scale-up.md §4 for the 200/500/1,000-company
+ * math). The response reports the honest coverage counts (read /
+ * fetch-error / not-yet-extracted) that feed the daily snapshot's
+ * postingsWithDescriptionRead metric.
+ */
+async function handleRequirementsCron(request: Request): Promise<Response> {
+  if (!authorized(request)) {
+    return json({ ok: false, error: "unauthorized — expected Authorization: Bearer <CRON_SECRET>" }, 401);
+  }
+  if (!process.env.DATABASE_URL) {
+    return json({ ok: false, error: "DATABASE_URL is not set — the tracking store isn't configured" }, 503);
+  }
+  const started = Date.now();
+  try {
+    const req = await runRequirementsSlice(new Store(), {});
+    return json({
+      ok: true,
+      at: req.at,
       requirements: {
         picked: req.picked,
         processed: req.processed,
@@ -103,18 +153,11 @@ async function handleSync(request: Request): Promise<Response> {
         coverage: req.coverage,
         elapsedMs: req.elapsedMs,
       },
-      watchlist: {
-        evaluated: watch.evaluated,
-        sent: watch.sent,
-        skipped: watch.skipped,
-        failures: watch.failures,
-      },
       elapsedMs: Date.now() - started,
     });
   } catch (err) {
-    // Log detail server-side (function logs); the caller gets an honest error.
-    console.error("[cron] /api/cron/sync failed:", err);
-    return json({ ok: false, error: "sync failed — see function logs" }, 500);
+    console.error("[cron] /api/cron/requirements failed:", err);
+    return json({ ok: false, error: "requirements sweep failed — see function logs" }, 500);
   }
 }
 
@@ -272,9 +315,12 @@ async function handleDailyCron(request: Request): Promise<Response> {
   const started = Date.now();
   const store = new Store();
   try {
+    // Requirements slice: capped at 30s here even though the dedicated
+    // /api/cron/requirements cron uses the full 45s default — the daily
+    // handler ALSO compiles the snapshot and must fit the 60s window.
     const req = await runRequirementsSlice(store, {
       limit: Number(process.env.REQUIREMENTS_PER_RUN) > 0 ? Number(process.env.REQUIREMENTS_PER_RUN) : 150,
-      timeBudgetMs: Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) > 0 ? Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) : 30_000,
+      timeBudgetMs: Math.min(30_000, Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) > 0 ? Number(process.env.REQUIREMENTS_TIME_BUDGET_MS) : 30_000),
     });
     const date = utcDateStr();
     const snapshot = await computeDailySnapshot(store, date);
@@ -330,27 +376,28 @@ async function handleDailyCron(request: Request): Promise<Response> {
 
 /**
  * GET /api/cron/discover — the registry-growth cron (owner direction
- * 2026-08-15; design §4.2/§4.3/§4.6).
+ * 2026-08-15; design §4.2/§4.3/§4.6; scale-up: engine/registry-scale-up.md §3).
  *
  * Guards: same fail-closed CRON_SECRET auth as the other cron paths (Vercel
  * Cron sends `Authorization: Bearer <CRON_SECRET>` on every scheduled
  * invocation). GET-only, trailing-slash variants intercepted below.
  *
- * Schedule: 01:45 UTC daily — just before the 02:30 daily snapshot, so a
- * company verified at 01:45 can be picked up by the 02:00 hourly sync (or at
- * worst appears in the NEXT day's snapshot — honest and fine). A separate
- * invocation so discovery can never eat the hourly sync's time or the
- * daily/requirements budget.
+ * Schedule: 4× daily (`45 1,7,13,19 * * *`) — just before the 02:30 daily
+ * snapshot (so a company verified at 01:45 can be picked up by the 02:00 sync
+ * and appears in that day's snapshot) and three more slots through the day.
+ * Each slot claims `discovery_slot_<utcDate>_<slot>` (slot = hour/6), so a
+ * duplicate invocation of the same slot no-ops while the four daily slots each
+ * run independently (Vercel cron delivery is best-effort and may double-fire).
  *
  * Behavior (idempotent by design):
- *   1. Atomic claim `discovery_day_<utcDate>` (tryCreateMeta) — a duplicate
- *      invocation on the same day no-ops (Vercel cron delivery is best-effort
- *      and may double-fire).
+ *   1. Atomic per-slot claim (tryCreateMeta) — duplicate invocations no-op.
  *   2. runDiscoverySlice: a bounded slice of due candidates from the Neon
- *      pool (DISCOVERY_PER_RUN default 8, DISCOVERY_HOST_CAP default 3,
- *      DISCOVERY_TIME_BUDGET_MS default 30 s), verified live through the same
+ *      pool (DISCOVERY_PER_RUN default 48, DISCOVERY_HOST_CAP default 16,
+ *      DISCOVERY_TIME_BUDGET_MS default 45 s — raised from 8/3/30s so the
+ *      pool drains at dozens of verifications per day, see
+ *      engine/registry-scale-up.md §3), verified live through the same
  *      politeness layer as the sync; only `verified` rows join the registry.
- *   3. Persists the run summary under `discovery_summary_<utcDate>` in
+ *   3. Persists the run summary under `discovery_slot_<utcDate>_<slot>` in
  *      sync_meta (the /data page and monthly report can consume registry
  *      growth KPI: pool summary + newlyVerifiedSince).
  *   4. Returns the JSON summary — the scheduled honest per-run report
@@ -366,20 +413,24 @@ async function handleDiscoveryCron(request: Request): Promise<Response> {
   const started = Date.now();
   const store = new Store();
   try {
+    const now = new Date();
     const date = utcDateStr();
-    const claimed = await store.tryCreateMeta(`discovery_day_${date}`, new Date().toISOString());
+    const slot = Math.floor(now.getUTCHours() / 6); // 0..3 → 4 independent daily slots
+    const claimKey = `discovery_slot_${date}_${slot}`;
+    const claimed = await store.tryCreateMeta(claimKey, now.toISOString());
     if (!claimed) {
       return json({
         ok: true,
-        at: new Date().toISOString(),
+        at: now.toISOString(),
         claim: "already-claimed",
-        note: `discovery already ran for ${date} — duplicate invocation no-op`,
+        note: `discovery already ran for ${date} slot ${slot} — duplicate invocation no-op`,
         elapsedMs: Date.now() - started,
       });
     }
     const r = await runDiscoverySlice(store, {});
     const summary = {
       at: r.at,
+      slot,
       picked: r.picked,
       processed: r.processed,
       skippedBudget: r.skippedBudget,
@@ -389,11 +440,11 @@ async function handleDiscoveryCron(request: Request): Promise<Response> {
       elapsedMs: r.elapsedMs,
     };
     try {
-      await store.tryCreateMeta(`discovery_summary_${date}`, JSON.stringify(summary));
+      await store.tryCreateMeta(`discovery_summary_${date}_${slot}`, JSON.stringify(summary));
     } catch (err) {
       console.error("[cron] discovery summary persist failed (non-fatal):", err);
     }
-    return json({ ok: true, at: r.at, claim: "claimed", date, ...summary });
+    return json({ ok: true, at: r.at, claim: "claimed", date, slot, ...summary });
   } catch (err) {
     console.error("[cron] /api/cron/discover failed:", err);
     return json({ ok: false, error: "discovery failed — see function logs" }, 500);
@@ -444,6 +495,12 @@ export async function handleCronHttp(request: Request): Promise<Response | null>
       return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
     }
     return handleDiscoveryCron(request);
+  }
+  if (pathname === "/api/cron/requirements" || pathname === "/api/cron/requirements/") {
+    if (request.method !== "GET") {
+      return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
+    }
+    return handleRequirementsCron(request);
   }
   return null;
 }

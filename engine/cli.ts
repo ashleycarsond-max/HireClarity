@@ -210,7 +210,8 @@ async function cmdSync(dryRun: boolean): Promise<void> {
 /**
  * `bun run sync-chunk [--companies N]` — bounded sync batch (the cron-safe
  * form). Processes up to N registry companies (default COMPANIES_PER_RUN env,
- * else 1), advancing the persisted Neon cursor each run.
+ * else 1), bounded by SYNC_TIME_BUDGET_MS, advancing the persisted Neon
+ * cursor each run.
  */
 async function cmdSyncChunk(companies: number | null): Promise<void> {
   const s = store();
@@ -219,7 +220,7 @@ async function cmdSyncChunk(companies: number | null): Promise<void> {
   const lines: string[] = [];
   lines.push(`SYNC-CHUNK at ${report.at} (${Date.now() - started}ms)`);
   lines.push(
-    `Registry: ${report.registrySize} monitored companies | batch: ${report.processedNames.join(", ") || "(none)"} | cursor: ${report.cursor} | remaining this cycle: ${report.remaining}`
+    `Registry: ${report.registrySize} monitored companies | batch: ${report.processedNames.join(", ") || "(none)"} | cursor: ${report.cursor} | remaining this cycle: ${report.remaining} | skippedBudget: ${report.skippedBudget}`
   );
   for (const c of report.processed) {
     lines.push(`${c.name}`);
@@ -513,8 +514,9 @@ async function cmdDiscoverySlice(limit: number | null): Promise<void> {
 
 /**
  * `bun run seed-candidates` — idempotently seed the Neon discovery pool from
- * the repo's verified seed data (SEED_COMPANIES as 'verified' + the 231
- * FALLBACK_CANDIDATES as 'pending'). Re-running is a no-op for existing rows.
+ * the repo's verified seed data (SEED_COMPANIES as 'verified' + the curated
+ * FALLBACK_CANDIDATES + the scale-up wave (candidates-scale.ts) + the shared
+ * ats-candidates.md as 'pending'). Re-running is a no-op for existing rows.
  */
 async function cmdSeedCandidates(): Promise<void> {
   const s = store();
@@ -523,7 +525,7 @@ async function cmdSeedCandidates(): Promise<void> {
   console.log(`DISCOVERY POOL SEED at ${isoNow()} (Neon pool, before: ${beforeTotal} rows)`);
   const r = await seedDiscoveryPool(s);
   console.log(
-    `seeded ${r.verifiedRows} verified board refs + ${r.curatedRows} curated candidates | inserted this run: ${r.inserted} (re-run: 0)`
+    `seeded ${r.verifiedRows} verified board refs + ${r.curatedRows} curated + ${r.scaleRows} scale-wave + ${r.sharedRows} shared-file candidates | inserted this run: ${r.inserted} (re-run: 0)`
   );
   console.log(`pool after: ${r.poolSize} rows | ${Object.entries(r.statusCounts).map(([k, v]) => `${k}=${v}`).join(", ")}`);
 }

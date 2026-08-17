@@ -114,7 +114,15 @@ function isLoopbackUrl(url: string): boolean {
   }
 }
 
-/** Env-overridable defaults, shared by the CLI, the hourly sync and the daily cron. */
+/**
+ * Env-overridable defaults, shared by the CLI, the requirements cron and the
+ * daily cron. Budget default 30s and concurrency 12: the sweep now runs in
+ * its OWN cron window (/api/cron/requirements — see src/server/cron-http.ts),
+ * and the wall-clock budget only stops the loop BETWEEN postings — in-flight
+ * hosts finish their current extraction (worst case ~25s: robots 8s + throttle
+ * 2s + 15s fetch), so a 30s budget keeps the worst-case run ~55s, inside the
+ * 60s function window (measured live 2026-08-17: 15s budget → 25s wall).
+ */
 export function requirementsDefaults(): {
   limit: number;
   hostCap: number;
@@ -125,8 +133,8 @@ export function requirementsDefaults(): {
   return {
     limit: envInt("REQUIREMENTS_PER_RUN", 150),
     hostCap: envInt("REQUIREMENTS_HOST_CAP", 10),
-    concurrency: envInt("REQUIREMENTS_CONCURRENCY", 8),
-    timeBudgetMs: envInt("REQUIREMENTS_TIME_BUDGET_MS", 25_000),
+    concurrency: envInt("REQUIREMENTS_CONCURRENCY", 12),
+    timeBudgetMs: envInt("REQUIREMENTS_TIME_BUDGET_MS", 30_000),
     staleAfterDays: envInt("DESCRIPTION_STALE_AFTER_DAYS", 7),
   };
 }

@@ -13,9 +13,13 @@
  * outcome is recorded and countable, never seeded.
  *
  * Key properties (same spirit as runRequirementsSlice):
- *   - bounded: DISCOVERY_PER_RUN (default 8) candidates, DISCOVERY_HOST_CAP
- *     (default 3) per ATS host, DISCOVERY_TIME_BUDGET_MS (default 30_000)
- *     wall-clock budget — a 60 s Vercel function always completes;
+ *   - bounded: DISCOVERY_PER_RUN (default 48) candidates, DISCOVERY_HOST_CAP
+ *     (default 16) per ATS host, DISCOVERY_TIME_BUDGET_MS (default 45_000)
+ *     wall-clock budget — a 60 s Vercel function always completes; with 4
+ *     daily slots (01:45/07:45/13:45/19:45) this verifies ~40-70 candidates
+ *     and ~2-4× that per day, pacing the pool drain at dozens of verified
+ *     companies/day (registry scale-up, owner direction 2026-08-15 — see
+ *     engine/registry-scale-up.md §3);
  *   - never writes postings — ingest stays with the hourly sync loop, this is
  *     verification only;
  *   - never throws per candidate — each fetch/classify/upsert failure is
@@ -73,9 +77,9 @@ function envInt(name: string, def: number): number {
 /** Env-overridable defaults, shared by the CLI and the daily cron. */
 export function discoveryDefaults(): { limit: number; hostCap: number; timeBudgetMs: number } {
   return {
-    limit: envInt("DISCOVERY_PER_RUN", 8),
-    hostCap: envInt("DISCOVERY_HOST_CAP", 3),
-    timeBudgetMs: envInt("DISCOVERY_TIME_BUDGET_MS", 30_000),
+    limit: envInt("DISCOVERY_PER_RUN", 48),
+    hostCap: envInt("DISCOVERY_HOST_CAP", 16),
+    timeBudgetMs: envInt("DISCOVERY_TIME_BUDGET_MS", 45_000),
   };
 }
 

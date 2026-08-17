@@ -307,9 +307,10 @@ async function syncBoard(
   board: BoardKind,
   boardId: string,
   now: Date,
-  dryRun: boolean
+  dryRun: boolean,
+  fetch: (board: BoardKind, boardId: string) => Promise<BoardFetchResult> = fetchBoard
 ): Promise<BoardSyncResult> {
-  const fetched: BoardFetchResult = await fetchBoard(board, boardId);
+  const fetched: BoardFetchResult = await fetch(board, boardId);
   if (!fetched.ok) {
     return { board, boardId, ok: false, note: fetched.note, ...EMPTY };
   }
@@ -362,18 +363,48 @@ export async function runSync(store: Store, opts: SyncOptions = {}): Promise<Syn
  * so successive invocations advance through the registry and wrap around. An
  * hourly cron therefore cycles the entire registry across the day.
  *
+ * FULL-SCRUB SEMANTICS (registry scale-up, owner direction 2026-08-15): the
+ * invocation processes companies until EITHER `companies` (COMPANIES_PER_RUN,
+ * the hard cap) OR the wall-clock `timeBudgetMs` (SYNC_TIME_BUDGET_MS,
+ * default 45_000 — see engine/registry-scale-up.md for the math at 200/500/
+ * 1,000 companies) is reached; at least one company is always processed. The
+ * persisted cursor means successive invocations continue where the last one
+ * stopped, so the whole registry is re-observed (full scrub) every
+ * (registrySize / companies-per-invocation) invocations — every few hours at
+ * current size with 4 invocations/hour, and the time budget auto-scales the
+ * per-invocation work as companies get added without ever exceeding the
+ * serverless window. Companies skipped because the budget expired are counted
+ * in `skippedBudget` — the next invocation picks them up via the cursor.
+ *
  * - Cursor semantics: `sync_cursor` holds the index of the last company
  *   processed (start = cursor + 1, wrapping at registry length; -1 = none yet).
- * - Batch size: `COMPANIES_PER_RUN` env (default 1) or the `companies` option.
+ * - Batch size: `COMPANIES_PER_RUN` env (default 1, clamped 1–1000) or the
+ *   `companies` option.
  * - A run never processes the same company twice and stops at the end of the
  *   registry (no mid-run wrap), so a batch is at most min(companies, registry).
+ * - `fetchBoard` is injectable for tests (default = boards.ts — the same
+ *   politeness layer as everything else).
  */
 
 export const SYNC_CURSOR_KEY = "sync_cursor";
 
+/** Env-overridable full-scrub tuning (shared by the cron and the CLI). */
+export function syncDefaults(): { companies: number; timeBudgetMs: number } {
+  const raw = Number.parseInt(process.env.COMPANIES_PER_RUN ?? "", 10);
+  const rawBudget = Number.parseInt(process.env.SYNC_TIME_BUDGET_MS ?? "", 10);
+  return {
+    companies: Number.isFinite(raw) && raw > 0 ? raw : 1,
+    timeBudgetMs: Number.isFinite(rawBudget) && rawBudget > 0 ? rawBudget : 45_000,
+  };
+}
+
 export interface SyncChunkOptions {
   /** Max companies to process in this invocation (default: COMPANIES_PER_RUN env, then 1). */
   companies?: number;
+  /** Wall-clock budget in ms (env SYNC_TIME_BUDGET_MS; default 45_000). */
+  timeBudgetMs?: number;
+  /** Injectable board fetcher (tests substitute a mock; default = boards.ts). */
+  fetchBoard?: (board: BoardKind, boardId: string) => Promise<BoardFetchResult>;
   now?: Date;
 }
 
@@ -389,16 +420,22 @@ export interface SyncChunkReport {
   cursor: number;
   /** Companies left before the cursor wraps to the start of the registry. */
   remaining: number;
+  /** Companies not processed because the wall-clock budget expired. */
+  skippedBudget: number;
   /** Errors across all processed boards (honest per-board failures). */
   errors: string[];
   storeCount: number;
+  elapsedMs: number;
 }
 
 export async function runSyncChunk(store: Store, opts: SyncChunkOptions = {}): Promise<SyncChunkReport> {
+  const started = Date.now();
   const now = opts.now ?? new Date();
   const nowIso = now.toISOString();
-  const fromEnv = Number.parseInt(process.env.COMPANIES_PER_RUN ?? "", 10);
-  const batch = Math.max(1, Math.min(50, opts.companies ?? (Number.isFinite(fromEnv) ? fromEnv : 1)));
+  const def = syncDefaults();
+  const batch = Math.max(1, Math.min(1000, opts.companies ?? def.companies));
+  const timeBudgetMs = opts.timeBudgetMs ?? def.timeBudgetMs;
+  const fetch = opts.fetchBoard ?? fetchBoard;
 
   const registry = await buildRegistry(store);
   const registrySize = registry.length;
@@ -411,8 +448,10 @@ export async function runSyncChunk(store: Store, opts: SyncChunkOptions = {}): P
       registrySize: 0,
       cursor: -1,
       remaining: 0,
+      skippedBudget: 0,
       errors: [],
       storeCount: await store.count(),
+      elapsedMs: Date.now() - started,
     };
   }
 
@@ -422,14 +461,21 @@ export async function runSyncChunk(store: Store, opts: SyncChunkOptions = {}): P
   let totals: BoardSyncCounts = { ...EMPTY };
   const errors: string[] = [];
   let lastIdx = -1;
+  let skippedBudget = 0;
 
   for (let i = 0; i < batch; i++) {
     const idx = start + i;
     if (idx >= registrySize) break; // never wrap mid-run — next invocation continues
+    // Time budget: stop before starting a company when the budget expired
+    // (the first company always runs — a run must do at least some work).
+    if (i > 0 && Date.now() - started > timeBudgetMs) {
+      skippedBudget = batch - i;
+      break;
+    }
     const company = registry[idx];
     const result: CompanySyncResult = { name: company.name, boards: [], errors: [] };
     for (const ref of company.boards) {
-      const r = await syncBoard(store, company, ref.board, ref.boardId, now, false);
+      const r = await syncBoard(store, company, ref.board, ref.boardId, now, false, fetch);
       result.boards.push(r);
       if (!r.ok) result.errors.push(`${ref.board}/${ref.boardId}: ${r.note}`);
       totals = addCounts(totals, r);
@@ -448,7 +494,9 @@ export async function runSyncChunk(store: Store, opts: SyncChunkOptions = {}): P
     registrySize,
     cursor: lastIdx,
     remaining: lastIdx < 0 ? registrySize : (registrySize - 1 - lastIdx + registrySize) % registrySize,
+    skippedBudget,
     errors,
     storeCount: await store.count(),
+    elapsedMs: Date.now() - started,
   };
 }
