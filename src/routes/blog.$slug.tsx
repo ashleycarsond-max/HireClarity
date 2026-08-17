@@ -6,6 +6,33 @@ import { SiteFooter, SiteHeader } from "../components/SiteChrome";
 
 const SITE_URL = "https://hireclarity-data.vercel.app";
 
+/**
+ * Extract FAQ question/answer pairs from a post body. The FAQ section is an
+ * "## Frequently asked questions" heading followed by **Question** lines with
+ * answer paragraphs beneath each. Used to emit FAQPage JSON-LD on posts that
+ * carry a real FAQ block (the site's first FAQPage usage).
+ */
+function parseFaq(bodyMd: string): { question: string; answer: string }[] {
+  const lines = bodyMd.split("\n");
+  const start = lines.findIndex((l) => /^#{2,3}\s+frequently asked questions\s*$/i.test(l.trim()));
+  if (start < 0) return [];
+  const faq: { question: string; answer: string }[] = [];
+  let current: { question: string; answer: string } | null = null;
+  for (const raw of lines.slice(start + 1)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const q = /^\*\*(.+?)\*\*\s*$/.exec(line);
+    if (q) {
+      current = { question: q[1].trim(), answer: "" };
+      faq.push(current);
+    } else if (current) {
+      // Plain-text answer: drop markdown emphasis markers, keep everything else.
+      current.answer = [current.answer, line.replace(/\*\*/g, "")].filter(Boolean).join(" ").trim();
+    }
+  }
+  return faq.filter((f) => f.question && f.answer);
+}
+
 export const Route = createFileRoute("/blog/$slug")({
   loader: ({ params }): BlogPost => {
     const post = postBySlug(params.slug);
@@ -16,9 +43,25 @@ export const Route = createFileRoute("/blog/$slug")({
     const post = loaderData;
     const canonical = `${SITE_URL}/blog/${post.slug}`;
     const title = `${post.title} | HireClarity Data`;
+    const faq = parseFaq(post.bodyMd);
     const jsonLd = {
       "@context": "https://schema.org",
       "@graph": [
+        ...(faq.length > 0
+          ? [
+              {
+                "@type": "FAQPage",
+                "@id": `${canonical}#faq`,
+                url: canonical,
+                isPartOf: { "@id": canonical },
+                mainEntity: faq.map((f) => ({
+                  "@type": "Question",
+                  name: f.question,
+                  acceptedAnswer: { "@type": "Answer", text: f.answer },
+                })),
+              },
+            ]
+          : []),
         {
           "@type": "BlogPosting",
           "@id": canonical,
