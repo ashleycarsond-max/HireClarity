@@ -376,8 +376,10 @@ async function run(): Promise<void> {
     const nv = await store.newlyVerifiedSince(today);
     checkTrue("newlyVerifiedSince counts today's verified row", nv >= 1);
 
-    // Claim guard: an existing discovery_day_<date> claim makes the cron no-op.
-    const claimKey = `discovery_day_${today}`;
+    // Claim guard: an existing discovery_slot_<date>_<slot> claim makes the
+    // cron no-op (slot = hour/6 — the scale-up cron's independent slots).
+    const slot = Math.floor(new Date().getUTCHours() / 6);
+    const claimKey = `discovery_slot_${today}_${slot}`;
     claimKeyCreated = await store.tryCreateMeta(claimKey, new Date().toISOString());
     const authed = new Request("https://hireclarity-data.vercel.app/api/cron/discover", {
       method: "GET",
@@ -404,7 +406,7 @@ async function run(): Promise<void> {
     await clearFixtures();
     if (claimKeyCreated) {
       try {
-        await store.deleteMeta(`discovery_day_${utcDateStr(new Date())}`);
+        await store.deleteMeta(`discovery_slot_${utcDateStr(new Date())}_${Math.floor(new Date().getUTCHours() / 6)}`);
       } catch {
         /* best effort */
       }
