@@ -46,6 +46,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://hireclarity-data.vercel.app/blog/how-to-spot-a-ghost-job</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://hireclarity-data.vercel.app/blog/why-do-companies-repost-job-postings</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -607,6 +612,21 @@
   </url>
   <url>
     <loc>https://hireclarity-data.vercel.app/reports/2026-08-17</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://hireclarity-data.vercel.app/reports/2026-W33</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://hireclarity-data.vercel.app/reports/2026-W34</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://hireclarity-data.vercel.app/reports/2026</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
