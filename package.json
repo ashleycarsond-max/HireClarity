@@ -43,7 +43,8 @@
     "company-bench-test": "bun run engine/company-bench-test.ts",
     "company-report-test": "bun run engine/company-report-test.ts",
     "requirements-sync-test": "bun run engine/requirements-sync-test.ts",
-    "registry-scale-test": "bun run engine/registry-scale-test.ts"
+    "registry-scale-test": "bun run engine/registry-scale-test.ts",
+    "rollups-test": "bun run engine/rollups-test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

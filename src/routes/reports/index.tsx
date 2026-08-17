@@ -3,7 +3,14 @@ import { createServerFn } from "@tanstack/react-start";
 
 import type { ReportSnapshot } from "../../../engine/report";
 import { periodLabel, reportSummaryLine } from "../../../engine/report";
+import type { DailySnapshot } from "../../../engine/daily-stats";
 import { Store } from "../../../engine/store";
+import {
+  archiveFromDaily,
+  archiveSummaryLine,
+  periodLabelFor,
+  type ArchiveView,
+} from "../../../engine/rollups";
 import { CoverageNote } from "../../components/CoverageNote";
 import { SiteHeader } from "../../components/SiteChrome";
 
@@ -17,21 +24,54 @@ export interface ReportListItem {
   snapshot: ReportSnapshot;
 }
 
+export interface ArchiveListItem {
+  period: string;
+  label: string;
+  generatedAt: string;
+  summary: string;
+}
+
+export interface ReportsIndexData {
+  reports: ReportListItem[];
+  days: ArchiveListItem[];
+  weeks: ArchiveListItem[];
+  years: ArchiveListItem[];
+}
+
 /**
- * List published monthly snapshots (public, ungated). Each entry carries its
- * stored snapshot so the index can show an honest one-line summary per issue.
+ * List every archived period (public, ungated): published monthly reports,
+ * daily snapshots (permanent daily archives), and week/year rollups. Each
+ * entry carries its stored data so the index can show an honest one-line
+ * summary per period.
  */
-const listReports = createServerFn({ method: "POST" }).handler(async (): Promise<ReportListItem[]> => {
+const listReports = createServerFn({ method: "POST" }).handler(async (): Promise<ReportsIndexData> => {
   const store = new Store();
   try {
     const rows = await store.listReportSnapshots();
-    return rows.map((r) => ({
+    const reports: ReportListItem[] = rows.map((r) => ({
       period: r.period,
       generatedAt: r.generatedAt,
       snapshot: r.payload as ReportSnapshot,
     }));
+
+    const dailyRows = await store.listDailySnapshots();
+    const days: ArchiveListItem[] = dailyRows
+      .map((r) => archiveFromDaily(r.snapshot as DailySnapshot))
+      .map((a) => ({ period: a.period, label: a.label, generatedAt: a.generatedAt, summary: archiveSummaryLine(a) }));
+
+    const weekRows = await store.listRollups("week");
+    const weeks: ArchiveListItem[] = weekRows
+      .map((r) => r.payload as ArchiveView)
+      .map((a) => ({ period: a.period, label: a.label, generatedAt: a.generatedAt, summary: archiveSummaryLine(a) }));
+
+    const yearRows = await store.listRollups("year");
+    const years: ArchiveListItem[] = yearRows
+      .map((r) => r.payload as ArchiveView)
+      .map((a) => ({ period: a.period, label: a.label, generatedAt: a.generatedAt, summary: archiveSummaryLine(a) }));
+
+    return { reports, days, weeks, years };
   } catch {
-    return [];
+    return { reports: [], days: [], weeks: [], years: [] };
   } finally {
     store.close();
   }
@@ -39,16 +79,16 @@ const listReports = createServerFn({ method: "POST" }).handler(async (): Promise
 
 /* ---------------------------------- route --------------------------------- */
 
-const TITLE = "Job-Market Reports: Ghost Jobs, Recycled Postings, Score Data | HireClarity Data";
+const TITLE = "Job-Market Reports & Archives: Ghost Jobs, Recycled Postings, Score Data | HireClarity Data";
 const DESCRIPTION =
-  "Observed-sample job-market reports from HireClarity Data: ghost-job share, recycled postings, listing durations, board split and score distributions across the postings we track — refreshed daily during our first 6 months, then monthly.";
+  "Observed-sample job-market reports and permanent archives from HireClarity Data: ghost-job share, recycled postings, listing durations, board split and score distributions across the postings we track — refreshed daily during our first 6 months, then monthly, with every daily/weekly/monthly/yearly period archived forever.";
 
 export const Route = createFileRoute("/reports/")({
-  loader: async (): Promise<ReportListItem[]> => {
+  loader: async (): Promise<ReportsIndexData> => {
     try {
       return await listReports();
     } catch {
-      return [];
+      return { reports: [], days: [], weeks: [], years: [] };
     }
   },
   head: () => ({
@@ -107,26 +147,44 @@ function fmtDay(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
+function ArchiveCard({ href, title, sub, meta }: { href: string; title: string; sub: string; meta: string }) {
+  return (
+    <a
+      href={href}
+      className="block rounded-xl border border-slate-200 bg-white p-5 transition-colors hover:border-indigo-300 hover:shadow-sm"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h4 className="font-bold text-slate-900">{title}</h4>
+        <span className="text-xs text-slate-400">{meta}</span>
+      </div>
+      <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{sub}</p>
+    </a>
+  );
+}
+
 /* ------------------------------- page body -------------------------------- */
 
 function ReportsIndexPage() {
-  const reports = Route.useLoaderData();
+  const data = Route.useLoaderData();
+  const totalArchives = data.days.length + data.weeks.length + data.years.length;
 
   return (
     <div className="min-h-screen bg-slate-50">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Job-Market Reports</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Job-Market Reports & Archives</h1>
         <p className="mt-4 max-w-3xl text-lg leading-relaxed text-slate-600">
           We publish what our tracking actually saw: ghost-job share, recycled postings, listing durations,
           board split and score distributions — an <strong>observed sample</strong> of the postings we track,
           never an estimate of the whole market. During our first 6 months the current report refreshes
           <strong> daily</strong> from the 02:30 UTC compile so you can watch change as data compiles; after
-          that it refreshes monthly.
+          that it refreshes monthly. <strong>Every period is archived permanently</strong> — each daily
+          snapshot, weekly rollup, monthly report and yearly rollup keeps its own public page forever, labeled
+          with the date its data was compiled.
         </p>
 
         <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 text-sm leading-relaxed text-slate-600">
-          <h2 className="text-base font-bold text-slate-900">What this report is</h2>
+          <h2 className="text-base font-bold text-slate-900">What these reports are</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5">
             <li>
               Every figure counts only what we observed: <strong>N postings we track since a date</strong>.
@@ -143,23 +201,25 @@ function ReportsIndexPage() {
               company page — there's no separate private company product right now.
             </li>
             <li>
-              Each published snapshot carries a "data as of" label. During our first 6 months the current
-              month's snapshot refreshes daily from the latest compile (same URL per month, never a new page
-              per day); after that, each month gets its own snapshot on the 1st.
+              Each archived page carries a "data as of" label. Archive URLs never change:
+              <span className="font-mono text-xs"> /reports/YYYY-MM-DD</span> (daily),
+              <span className="font-mono text-xs"> /reports/YYYY-Www</span> (weekly),
+              <span className="font-mono text-xs"> /reports/YYYY-MM</span> (monthly report),
+              <span className="font-mono text-xs"> /reports/YYYY</span> (yearly).
             </li>
             <li>
-              Score distributions firm up as tracking history builds — every tracked posting is re-reviewed
-              every few hours, so the share of postings at each confidence level becomes meaningful as more
-              postings accumulate enough observations.
+              Trend views at day/week/month/year granularity honestly report n/a until they have enough
+              history (day needs 2+ days, week 2+ weeks, month 2+ months, year 2+ years) — a direction is
+              never invented.
             </li>
           </ul>
         </div>
 
-        <h2 className="mt-10 text-xl font-bold tracking-tight text-slate-900">Published reports</h2>
-
-        {reports.length === 0 ? (
+        {/* Monthly reports */}
+        <h2 className="mt-10 text-xl font-bold tracking-tight text-slate-900">Monthly reports</h2>
+        {data.reports.length === 0 ? (
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-8 text-center">
-            <p className="font-semibold text-slate-900">No reports published yet.</p>
+            <p className="font-semibold text-slate-900">No monthly reports published yet.</p>
             <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
               We're still watching. The first report appears here as soon as we have a snapshot worth
               publishing — meanwhile you can check any posting yourself, free.
@@ -173,7 +233,7 @@ function ReportsIndexPage() {
           </div>
         ) : (
           <div className="mt-4 space-y-4">
-            {reports.map((r) => (
+            {data.reports.map((r) => (
               <a
                 key={r.period}
                 href={`/reports/${r.period}`}
@@ -189,6 +249,77 @@ function ReportsIndexPage() {
             ))}
           </div>
         )}
+
+        {/* Daily archives */}
+        <h2 className="mt-10 text-xl font-bold tracking-tight text-slate-900">Daily archives</h2>
+        {data.days.length === 0 ? (
+          <p className="mt-3 rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-500">
+            The first daily archive appears here after the first 02:30 UTC snapshot compile. Every day from
+            then on keeps a permanent page at <span className="font-mono text-xs">/reports/YYYY-MM-DD</span>.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {[...data.days].reverse().map((a) => (
+              <ArchiveCard
+                key={a.period}
+                href={`/reports/${a.period}`}
+                title={`Daily snapshot, ${a.label}`}
+                sub={a.summary}
+                meta={`data as of ${a.period}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Weekly rollups */}
+        <h2 className="mt-10 text-xl font-bold tracking-tight text-slate-900">Weekly rollups</h2>
+        {data.weeks.length === 0 ? (
+          <p className="mt-3 rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-500">
+            Weekly rollups appear once a calendar week has daily snapshots, at{" "}
+            <span className="font-mono text-xs">/reports/YYYY-Www</span> (ISO weeks). Week-over-week rows
+            need 2+ weeks of history.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {[...data.weeks].reverse().map((a) => (
+              <ArchiveCard
+                key={a.period}
+                href={`/reports/${a.period}`}
+                title={a.label}
+                sub={a.summary}
+                meta={`data as of ${a.generatedAt.slice(0, 10)}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Yearly rollups */}
+        <h2 className="mt-10 text-xl font-bold tracking-tight text-slate-900">Yearly rollups</h2>
+        {data.years.length === 0 ? (
+          <p className="mt-3 rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-500">
+            Yearly rollups appear once a calendar year has daily snapshots, at{" "}
+            <span className="font-mono text-xs">/reports/YYYY</span>. Year-over-year rows need 2+ years of
+            history.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {[...data.years].reverse().map((a) => (
+              <ArchiveCard
+                key={a.period}
+                href={`/reports/${a.period}`}
+                title={a.label}
+                sub={a.summary}
+                meta={`data as of ${a.generatedAt.slice(0, 10)}`}
+              />
+            ))}
+          </div>
+        )}
+
+        <p className="mt-6 text-xs text-slate-400">
+          {data.reports.length} monthly report{data.reports.length === 1 ? "" : "s"} · {totalArchives} permanent
+          archive{totalArchives === 1 ? "" : "s"} (daily snapshots + weekly/yearly rollups). Archives never
+          disappear — every period keeps its own page with its "data as of" label.
+        </p>
 
         <div className="mt-12 rounded-2xl bg-slate-900 p-8 text-center">
           <h2 className="text-2xl font-bold tracking-tight text-white">Don't wait for next month</h2>

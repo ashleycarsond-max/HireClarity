@@ -41,6 +41,16 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://hireclarity-data.vercel.app/blog/why-dont-job-postings-list-salary</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://hireclarity-data.vercel.app/blog/why-do-companies-repost-job-postings</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://hireclarity-data.vercel.app/blog/is-this-job-posting-real</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -578,6 +588,26 @@
   <url>
     <loc>https://hireclarity-data.vercel.app/industries/travel</loc>
     <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://hireclarity-data.vercel.app/reports/2026-08-14</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://hireclarity-data.vercel.app/reports/2026-08-15</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://hireclarity-data.vercel.app/reports/2026-08-16</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://hireclarity-data.vercel.app/reports/2026-08-17</loc>
+    <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
 </urlset>

@@ -442,6 +442,11 @@ function trendFormat(key: string): "count" | "percent" | "days" {
   return "count";
 }
 
+/** Public form of trendFormat — shared with the rollup/trend layer (engine/rollups.ts). */
+export function reportTrendFormat(key: string): "count" | "percent" | "days" {
+  return trendFormat(key);
+}
+
 /**
  * The report's day-over-day trend metrics = the daily-stats headline metrics
  * PLUS board counts (every board the tracker covers) and score-bucket counts

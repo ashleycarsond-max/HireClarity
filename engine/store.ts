@@ -121,6 +121,14 @@ const SCHEMA_STATEMENTS: string[] = [
     snapshot   JSONB NOT NULL,
     created_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS report_rollups (
+    period_type TEXT NOT NULL,
+    period      TEXT NOT NULL,
+    payload     JSONB NOT NULL,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (period_type, period)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_rollups_type_period ON report_rollups(period_type, period)`,
   `CREATE TABLE IF NOT EXISTS watchlists (
     id              SERIAL PRIMARY KEY,
     user_email      TEXT NOT NULL,
@@ -934,6 +942,58 @@ export class Store {
       generatedAt: String(r.generated_at),
       payload: JSON.parse(String(r.payload)),
     }));
+  }
+  /* --------------------- report_rollups (day/week/month/year buckets) --------------------- */
+  /**
+   * Persist one period rollup (idempotent: re-computing a bucket REPLACES it).
+   * `periodType` is one of "day" | "week" | "month" | "year"; `period` is the
+   * bucket id ("YYYY-MM-DD" / "YYYY-Www" / "YYYY-MM" / "YYYY"). Rows are
+   * permanent archives — never pruned automatically (see engine/rollups.ts).
+   */
+  async saveRollup(periodType: string, period: string, payload: unknown): Promise<void> {
+    const sql = await this.ready();
+    await sql.query(
+      `INSERT INTO report_rollups (period_type, period, payload, updated_at) VALUES ($1, $2, $3::jsonb, $4)
+       ON CONFLICT (period_type, period) DO UPDATE SET
+         payload    = EXCLUDED.payload,
+         updated_at = EXCLUDED.updated_at`,
+      [periodType, period, JSON.stringify(payload), new Date().toISOString()]
+    );
+  }
+  /** Read one period rollup (payload parsed from JSONB). Null when absent. */
+  async getRollup(periodType: string, period: string): Promise<{ periodType: string; period: string; payload: unknown; updatedAt: string } | null> {
+    const sql = await this.ready();
+    const rows = await sql.query(
+      `SELECT period_type, period, payload::text AS payload, updated_at FROM report_rollups
+       WHERE period_type = $1 AND period = $2`,
+      [periodType, period]
+    );
+    if (!rows[0]) return null;
+    return {
+      periodType: String(rows[0].period_type),
+      period: String(rows[0].period),
+      payload: JSON.parse(String(rows[0].payload)),
+      updatedAt: String(rows[0].updated_at),
+    };
+  }
+  /** All rollups of one type, bucket id ascending (oldest first). */
+  async listRollups(periodType: string): Promise<{ period: string; payload: unknown; updatedAt: string }[]> {
+    const sql = await this.ready();
+    const rows = await sql.query(
+      `SELECT period, payload::text AS payload, updated_at FROM report_rollups
+       WHERE period_type = $1 ORDER BY period ASC`,
+      [periodType]
+    );
+    return rows.map((r) => ({
+      period: String(r.period),
+      payload: JSON.parse(String(r.payload)),
+      updatedAt: String(r.updated_at),
+    }));
+  }
+  /** Remove one rollup row (fixture cleanup / admin only — archives are permanent). */
+  async deleteRollup(periodType: string, period: string): Promise<void> {
+    const sql = await this.ready();
+    await sql.query(`DELETE FROM report_rollups WHERE period_type = $1 AND period = $2`, [periodType, period]);
   }
 
   /**
