@@ -434,11 +434,30 @@ async function cmdDailyStats(dateArg: string | null): Promise<void> {
   const date = dateArg ?? utcDateStrForCli();
   const snapshot = await computeDailySnapshot(s, date);
   await saveDailySnapshot(s, snapshot);
+  // Rollups (owner direction 2026-08-15): after every snapshot compile, refresh
+  // the week/month/year buckets that contain this date (idempotent).
+  const { upsertRollupsForDate } = await import("./rollups");
+  const rollups = await upsertRollupsForDate(s, snapshot.date);
   console.log(dailySummaryLine(snapshot));
   console.log(`\n(snapshot stored in daily_snapshots for ${snapshot.date})`);
+  if (rollups.length) {
+    console.log(`rollups refreshed: ${rollups.map((r) => `${r.type} ${r.period}`).join(", ")}`);
+  }
   console.log(`trends vs previous: ${Object.keys(snapshot.trends).length ? "" : "none"}`);
   for (const [key, t] of Object.entries(snapshot.trends)) {
     console.log(`  ${key.padEnd(30)} delta=${t.delta === null ? "n/a" : t.delta} direction=${t.direction}`);
+  }
+}
+/**
+ * `bun run rollups-backfill` — recompute EVERY week/month/year rollup from the
+ * stored daily snapshots (idempotent; used to backfill the rollup table after
+ * this feature ships, and any time rollup logic changes).
+ */
+async function cmdRollupsBackfill(): Promise<void> {
+  const { recomputeAllRollups } = await import("./rollups");
+  const totals = await recomputeAllRollups(store());
+  for (const t of totals) {
+    console.log(`${t.type.padEnd(6)} ${t.count} bucket${t.count === 1 ? "" : "s"} upserted`);
   }
 }
 
@@ -551,6 +570,7 @@ Usage:
   bun run company-report <slug> [--quarter YYYY-Qn]  compute + store one company's quarterly reputation report
   bun run requirements               rolling description-requirement refresh (bounded slice)
   bun run daily-stats [YYYY-MM-DD]   compute + store one day's snapshot (default today, UTC)
+  bun run rollups-backfill           recompute all week/month/year rollups from stored daily snapshots
   bun run robots <url>           show what robots.txt says for a URL
   bun run track-demo             end-to-end demo on real public postings
   bun run relist-demo            fixture demo: relist detection (200→404→200)
@@ -604,6 +624,9 @@ Storage: Neon Postgres (process.env.DATABASE_URL)
       break;
     case "daily-stats":
       await cmdDailyStats(args[1] ?? null);
+      break;
+    case "rollups-backfill":
+      await cmdRollupsBackfill();
       break;
     case "track-reset":
       await cmdReset();

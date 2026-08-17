@@ -26,6 +26,7 @@ import { runDiscoverySlice } from "../../engine/discovery-sync";
 import { DAILY_REPORT_UNTIL, computeReportSnapshot, currentPeriod, reportRefreshDecision, saveReportSnapshot } from "../../engine/report";
 import { runRequirementsSlice } from "../../engine/requirements-sync";
 import { computeDailySnapshot, saveDailySnapshot, utcDateStr } from "../../engine/daily-stats";
+import { upsertRollupsForDate } from "../../engine/rollups";
 import { sendReportToSignups } from "./report-email";
 import { runWatchlistAlertPass } from "./watch-alerts";
 import { timingSafeEqual } from "node:crypto";
@@ -325,10 +326,15 @@ async function handleDailyCron(request: Request): Promise<Response> {
     const date = utcDateStr();
     const snapshot = await computeDailySnapshot(store, date);
     await saveDailySnapshot(store, snapshot);
+    // Rollups (owner direction 2026-08-15): refresh the week/month/year
+    // buckets containing today from the stored daily snapshots — idempotent,
+    // permanent archive rows (report_rollups). Day buckets are the snapshots.
+    const rollups = await upsertRollupsForDate(store, date);
     return json({
       ok: true,
       date,
       at: snapshot.generatedAt,
+      rollups: rollups.map((r) => `${r.type}:${r.period}`),
       requirements: {
         picked: req.picked,
         processed: req.processed,
