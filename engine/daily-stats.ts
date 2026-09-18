@@ -34,6 +34,7 @@
 
 import { Store } from "./store";
 import { buildSignals, type SignalContext } from "./signals";
+import { loadEventsByPosting, loadPayByPosting } from "./signal-context";
 import { scoreCore } from "./score";
 import { industryForCompany, FALLBACK_INDUSTRY } from "./company-industries";
 import { normalizeTitle } from "./titles";
@@ -221,24 +222,19 @@ export async function computeDailySnapshot(
   const relisted = all.filter((r) => r.status === "relisted").length;
   const relistedAtLeastOnce = all.filter((r) => r.relistCount > 0).length;
 
-  // ── batched signal context (same pattern as engine/report.ts) ──
-  const byPostingId = new Map<string, PostingRecord>();
+  // ── batched signal context (scale-safe reads — engine/signal-context.ts).
+  //    The old code read the WHOLE events table here (390 MB → Neon 507, the
+  //    2026-08-22→09-17 pipeline outage); the transition rows + one
+  //    content_changed flag per posting are the same inputs, a few MB. ──
   const identityGroups = new Map<string, PostingRecord[]>();
   for (const r of all) {
-    byPostingId.set(r.postingId, r);
     const key = r.identityKey || r.postingId;
     const list = identityGroups.get(key) ?? [];
     list.push(r);
     identityGroups.set(key, list);
   }
-  const eventsByPosting = new Map<string, PostingEvent[]>();
-  for (const e of await store.allEvents()) {
-    const list = eventsByPosting.get(e.postingId) ?? [];
-    list.push(e);
-    eventsByPosting.set(e.postingId, list);
-  }
-  const payByPosting = new Map<string, import("./types").PayInfo>();
-  for (const p of await store.allPay()) payByPosting.set(p.postingId, p);
+  const eventsByPosting = await loadEventsByPosting(store);
+  const payByPosting = await loadPayByPosting(store);
   const ctx: SignalContext = { identityGroups, eventsByPosting, payByPosting };
   const checkCounts = new Map((await store.checksByPosting()).map((c) => [c.postingId, c.count]));
 
@@ -388,22 +384,14 @@ export async function computeDailySnapshot(
 
 /* --------------------------------- trends --------------------------------- */
 
-/** Headline metrics that get a delta + direction in every snapshot. */
-export const TREND_METRICS: { key: string; label: string; pick: (s: DailySnapshot) => number | null }[] = [
-  { key: "totalTracked", label: "postings tracked", pick: (s) => s.postings.totalTracked },
-  { key: "live", label: "live postings", pick: (s) => s.postings.live },
-  { key: "removed", label: "removed postings", pick: (s) => s.postings.removed },
-  { key: "relisted", label: "relisted postings", pick: (s) => s.postings.relisted },
-  { key: "relistShare", label: "relist share", pick: (s) => s.postings.relistShare },
-  { key: "medianDaysListed", label: "median days listed", pick: (s) => s.postings.medianDaysListed },
-  { key: "distinctCompanies", label: "distinct companies", pick: (s) => s.postings.distinctCompanies },
-  { key: "bachelorShare", label: "bachelor share", pick: (s) => s.requirements.bachelorShare },
-  { key: "mastersShare", label: "masters share", pick: (s) => s.requirements.mastersShare },
-  { key: "fivePlusShare", label: "5+ years share", pick: (s) => s.requirements.fivePlusShare },
-  { key: "postingsWithDescriptionRead", label: "descriptions read", pick: (s) => s.requirements.postingsWithDescriptionRead },
-  { key: "topIndustryCount", label: "top industry postings", pick: (s) => s.industries[0]?.count ?? null },
-  { key: "topTitleCount", label: "top title postings", pick: (s) => s.titles[0]?.count ?? null },
-];
+/**
+ * Headline metrics that get a delta + direction in every snapshot. The list
+ * itself lives in the leaf module engine/trend-metrics.ts (import + re-export
+ * here, so every existing `from "./daily-stats"` import keeps working) — see
+ * that file for why the shared array moved out of this cycle.
+ */
+import { TREND_METRICS } from "./trend-metrics";
+export { TREND_METRICS };
 
 function roundDelta(v: number): number {
   return Math.round(v * 10000) / 10000;

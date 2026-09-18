@@ -201,6 +201,15 @@ function ensureSchema(): Promise<void> {
 const ROW_COLS =
   "posting_id, canonical_url, requested_url, title, company, location, posted_at, source_board, identity_key, fingerprint, status, relist_count, first_seen_at, last_seen_at, last_checked_at, last_status_code, last_note, created_at";
 
+/**
+ * Keyset page size for the full-table reads (getAll / allPay / transition
+ * events). Neon's HTTP driver fails a single response above 64 MB, so every
+ * whole-table read must be paged; at ~700 bytes per posting row a 2,000-row
+ * page is ~1.5 MB, comfortably inside the limit and inside Vercel's function
+ * memory budget.
+ */
+const PAGE_SIZE = 2000;
+
 /** One watchlist row — a user watching a posting (Job Seeker tier). */
 export interface WatchlistRow {
   id: number;
@@ -336,10 +345,32 @@ export class Store {
     return rows[0] ? rowToRecord(rows[0]) : null;
   }
 
+  /**
+   * Every tracked posting, ordered by first_seen_at (unchanged contract).
+   *
+   * SCALE NOTE (2026-09-18, pipeline outage fix): this used to be ONE unbounded
+   * `SELECT … FROM postings` — fine at 8k rows, but Neon's serverless HTTP
+   * driver caps a single response at 64 MB, and the table has been growing
+   * continuously. It is now read in KEYSET PAGES (posting_id > last, ordered by
+   * the primary key) and re-sorted by first_seen_at in memory, so no single
+   * query can exceed a couple of MB no matter how large the registry gets. The
+   * returned array is identical to what the single query returned (same rows,
+   * same documented ordering).
+   */
   async getAll(): Promise<PostingRecord[]> {
     const sql = await this.ready();
-    const rows = await sql.query(`SELECT ${ROW_COLS} FROM postings ORDER BY first_seen_at`);
-    return rows.map(rowToRecord);
+    const out: PostingRecord[] = [];
+    let last = "";
+    for (;;) {
+      const rows = await sql.query(
+        `SELECT ${ROW_COLS} FROM postings WHERE posting_id > $1 ORDER BY posting_id LIMIT $2`,
+        [last, PAGE_SIZE]
+      );
+      for (const r of rows) out.push(rowToRecord(r));
+      if (rows.length < PAGE_SIZE) break;
+      last = String(rows[rows.length - 1].posting_id);
+    }
+    return out.sort((a, b) => (a.firstSeenAt < b.firstSeenAt ? -1 : a.firstSeenAt > b.firstSeenAt ? 1 : 0));
   }
 
   async getByIdentity(key: string): Promise<PostingRecord[]> {
@@ -495,21 +526,62 @@ export class Store {
   }
 
   /**
-   * ALL transition events in one query — batched read for the monthly job-
-   * market report (the events table is small: one row per state transition).
+   * HISTORICAL event stream, restricted to the transition types the scoring /
+   * status-history path actually reads (`first_seen` / `removed` / `relisted`),
+   * keyset-paginated by id.
+   *
+   * SCALE NOTE (2026-09-18, pipeline outage fix): the previous `allEvents()`
+   * read the WHOLE events table (id, posting_id, identity_key, type, at,
+   * detail) in one query. That table reached 1.43M rows / ~390 MB — way past
+   * Neon's 64 MB single-response cap — and every 02:30 daily + 09:00 report
+   * compile died with `NeonDbError: Server error (HTTP status 507): "response is
+   * too large (max is 67108864 bytes)"`. Two changes fix it at the source:
+   *   1. only the transition rows are read (the `content_changed` flood — 98% of
+   *      the table — is reduced to one boolean flag per posting, see
+   *      contentChangedFirstAt), and
+   *   2. rows come back in id-ordered pages, so no response can grow unbounded.
+   * The per-posting order the callers see is unchanged: ids increase over time,
+   * so id order is chronological order for each posting — exactly what
+   * `ORDER BY posting_id, at, id` produced before.
    */
-  async allEvents(): Promise<PostingEvent[]> {
+  async transitionEventsAll(): Promise<PostingEvent[]> {
+    const sql = await this.ready();
+    const out: PostingEvent[] = [];
+    let lastId = 0;
+    for (;;) {
+      const rows = await sql.query(
+        `SELECT id, posting_id, identity_key, type, at FROM events
+         WHERE id > $1 AND type IN ('first_seen', 'removed', 'relisted')
+         ORDER BY id LIMIT $2`,
+        [lastId, PAGE_SIZE]
+      );
+      for (const r of rows) {
+        out.push({
+          postingId: String(r.posting_id),
+          identityKey: r.identity_key ? String(r.identity_key) : "",
+          type: String(r.type) as PostingEvent["type"],
+          at: String(r.at),
+          detail: null,
+        });
+      }
+      if (rows.length < PAGE_SIZE) break;
+      lastId = Number(rows[rows.length - 1].id);
+    }
+    return out;
+  }
+  /**
+   * One row per posting that has at least one `content_changed` observation:
+   * its first such timestamp. The scoring path only asks "did we ever observe a
+   * content change for this posting?" (scoreCore: `events.some(type ===
+   * "content_changed")`), so this aggregate replaces 1.4M raw rows with ~1.6k
+   * under the current data, in a single GROUP BY.
+   */
+  async contentChangedFirstAt(): Promise<{ postingId: string; at: string }[]> {
     const sql = await this.ready();
     const rows = await sql.query(
-      `SELECT posting_id, identity_key, type, at, detail FROM events ORDER BY posting_id, at, id`
+      `SELECT posting_id, MIN(at) AS at FROM events WHERE type = 'content_changed' GROUP BY posting_id`
     );
-    return rows.map((r) => ({
-      postingId: String(r.posting_id),
-      identityKey: r.identity_key ? String(r.identity_key) : "",
-      type: String(r.type) as PostingEvent["type"],
-      at: String(r.at),
-      detail: r.detail ? String(r.detail) : null,
-    }));
+    return rows.map((r) => ({ postingId: String(r.posting_id), at: String(r.at) }));
   }
 
   /**
@@ -562,23 +634,46 @@ export class Store {
   }
 
   /**
-   * All check observations recorded in [startIso, endIso) — used by the
-   * monthly job-market report (checks performed in the period).
+   * Period check AGGREGATES — what the monthly report actually consumes from
+   * the checks log: how many observations were recorded in [startIso, endIso),
+   * the breakdown by observed status, and which postings were observed.
+   *
+   * SCALE NOTE (2026-09-18, pipeline outage fix): this replaces
+   * `checksInPeriod()`, which returned EVERY check row in the period
+   * (id, posting_id, at, observed_status, status_code, note). At 3.9M checks
+   * per month / ~700 MB that single response blew Neon's 64 MB cap and killed
+   * every report compile. The report only ever used counts + distinct posting
+   * ids, so the aggregation now happens in Postgres and the response is a few
+   * hundred KB. `total` is the sum of the per-status counts (the same number the
+   * row array's length gave, since observed_status is NOT NULL).
    */
-  async checksInPeriod(startIso: string, endIso: string): Promise<CheckRecord[]> {
+  async checksInPeriodStats(
+    startIso: string,
+    endIso: string
+  ): Promise<{
+    total: number;
+    byOutcome: { observedStatus: string; count: number; firstAt: string }[];
+    postingIds: string[];
+  }> {
     const sql = await this.ready();
-    const rows = await sql.query(
-      `SELECT id, posting_id, at, observed_status, status_code, note FROM checks WHERE at >= $1 AND at < $2 ORDER BY at, id`,
+    const outcomeRows = await sql.query(
+      `SELECT observed_status, COUNT(*)::int AS n, MIN(at) AS first_at
+       FROM checks WHERE at >= $1 AND at < $2
+       GROUP BY observed_status
+       ORDER BY n DESC, MIN(at) ASC`,
       [startIso, endIso]
     );
-    return rows.map((r) => ({
-      id: Number(r.id),
-      postingId: String(r.posting_id),
-      at: String(r.at),
-      observedStatus: String(r.observed_status) as CheckRecord["observedStatus"],
-      statusCode: r.status_code == null ? null : Number(r.status_code),
-      note: r.note ? String(r.note) : null,
+    const byOutcome = outcomeRows.map((r) => ({
+      observedStatus: String(r.observed_status),
+      count: Number(r.n),
+      firstAt: r.first_at == null ? "" : String(r.first_at),
     }));
+    const total = byOutcome.reduce((n, r) => n + r.count, 0);
+    const idRows = await sql.query(
+      `SELECT posting_id FROM checks WHERE at >= $1 AND at < $2 GROUP BY posting_id`,
+      [startIso, endIso]
+    );
+    return { total, byOutcome, postingIds: idRows.map((r) => String(r.posting_id)) };
   }
 
   /**
@@ -854,8 +949,22 @@ export class Store {
   /** Every pay row in the store (one query — the report/company-page context). */
   async allPay(): Promise<PayInfo[]> {
     const sql = await this.ready();
-    const rows = await sql.query(`SELECT ${Store.PAY_COLS} FROM posting_pay`);
-    return rows.map(Store.rowToPay);
+    // Keyset-paged like getAll(): the pay table grows with the registry, and a
+    // single unbounded SELECT would eventually hit Neon's 64 MB response cap.
+    // posting_id is the primary key, so (posting_id > last, ORDER BY posting_id)
+    // walks the table exactly once and returns every row.
+    const out: PayInfo[] = [];
+    let last = "";
+    for (;;) {
+      const rows = await sql.query(
+        `SELECT ${Store.PAY_COLS} FROM posting_pay WHERE posting_id > $1 ORDER BY posting_id LIMIT $2`,
+        [last, PAGE_SIZE]
+      );
+      for (const r of rows) out.push(Store.rowToPay(r));
+      if (rows.length < PAGE_SIZE) break;
+      last = String(rows[rows.length - 1].posting_id);
+    }
+    return out;
   }
 
   /** Remove one posting's pay row (fixture cleanup). */
