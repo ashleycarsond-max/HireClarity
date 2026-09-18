@@ -1,0 +1,60 @@
+# Pipeline cron — registry discovery (4×/day).
+#
+# WHY THIS EXISTS: Vercel Hobby rejects sub-daily cron schedules at deploy time
+# (HTTP 400), so this job moved off Vercel Cron to a GitHub Actions schedule
+# that calls the same endpoint with the same fail-closed
+# `Authorization: Bearer <CRON_SECRET>` header. Only /api/cron/daily (02:30)
+# and /api/cron/report (09:00) remain Vercel crons — never add sub-daily
+# schedules back to vercel.json / build-vercel.sh.
+#
+# SCHEDULE: `45 1,7,13,19 * * *` (UTC) — the 01:45 slot runs just before the
+# 02:30 daily snapshot, so a company verified at 01:45 can be picked up by the
+# next sync chunk and appear in that day's snapshot. Each slot claims
+# `discovery_slot_<utcDate>_<slot>` in sync_meta, so a duplicate invocation of
+# the same slot is a no-op (safe against GitHub's at-least-once delivery).
+#
+# SETUP: repository Actions secret CRON_SECRET (same value as the Vercel project
+# env var). Set with:
+#   gh secret set CRON_SECRET --repo ashleycarsond-max/HireClarity
+
+name: pipeline-discover
+
+on:
+  schedule:
+    - cron: "45 1,7,13,19 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: pipeline-discover
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/discover
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          url="https://hireclarity-data.vercel.app/api/cron/discover"
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::Actions secret CRON_SECRET is not set — the scheduled pipeline cannot authenticate. Set it with: gh secret set CRON_SECRET"
+            exit 1
+          fi
+          body="$(mktemp)"
+          code="$(curl -sS --max-time 90 -o "$body" -w '%{http_code}' \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "user-agent: hireclarity-pipeline-cron (github actions)" \
+            "$url")" || {
+              echo "::error::curl failed for $url (network error or no response within 90s)"
+              exit 1
+            }
+          echo "GET ${url} -> HTTP ${code}"
+          echo "response body (first 2000 bytes):"
+          head -c 2000 "$body"; echo
+          if [ "$code" != "200" ]; then
+            echo "::error::$url returned HTTP ${code} — the discovery slot did not run"
+            exit 1
+          fi

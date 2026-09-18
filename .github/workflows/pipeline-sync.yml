@@ -1,0 +1,65 @@
+# Pipeline cron — tracking sync (registry full-scrub chunks, 4×/hour).
+#
+# WHY THIS EXISTS: Vercel Hobby accounts now REJECT any cron schedule that fires
+# more than once per day (deploy fails HTTP 400), so the sub-daily jobs
+# (sync 4×/hour, requirements 2×/hour, discover 4×/day) cannot live in
+# vercel.json / build-vercel.sh any more — only /api/cron/daily (02:30) and
+# /api/cron/report (09:00) stay on Vercel Cron. These GitHub Actions schedules
+# call the SAME /api/cron/* endpoints on the live deployment with the same
+# fail-closed `Authorization: Bearer <CRON_SECRET>` header, so the pipeline
+# keeps running. Do NOT add sub-daily schedules back to the Vercel config.
+#
+# SCHEDULE: `0,15,30,45 * * * *` (UTC) — 4 invocations/hour. Each invocation runs
+# a bounded chunk (SYNC_TIME_BUDGET_MS + COMPANIES_PER_RUN) and advances the
+# persisted company cursor, so the whole registry is re-observed every few
+# hours. GitHub Actions scheduled runs can be delayed by a few minutes under
+# load; that is fine — the endpoint is idempotent and cursor-based.
+#
+# SETUP: the repository Actions secret CRON_SECRET must hold the same value as
+# the CRON_SECRET env var on the Vercel project (the handler is fail-closed:
+# 401 without it). Set with:
+#   gh secret set CRON_SECRET --repo ashleycarsond-max/HireClarity
+
+name: pipeline-sync
+
+on:
+  schedule:
+    - cron: "0,15,30,45 * * * *"
+  workflow_dispatch:
+
+# Never let a slow run pile up on the next slot; the sync is cursor-based, so
+# skipping an overlapping slot is safe (the next one continues where it left).
+concurrency:
+  group: pipeline-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/sync
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          url="https://hireclarity-data.vercel.app/api/cron/sync"
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::Actions secret CRON_SECRET is not set — the scheduled pipeline cannot authenticate. Set it with: gh secret set CRON_SECRET"
+            exit 1
+          fi
+          body="$(mktemp)"
+          code="$(curl -sS --max-time 90 -o "$body" -w '%{http_code}' \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "user-agent: hireclarity-pipeline-cron (github actions)" \
+            "$url")" || {
+              echo "::error::curl failed for $url (network error or no response within 90s)"
+              exit 1
+            }
+          echo "GET ${url} -> HTTP ${code}"
+          echo "response body (first 2000 bytes):"
+          head -c 2000 "$body"; echo
+          if [ "$code" != "200" ]; then
+            echo "::error::$url returned HTTP ${code} — the sync chunk did not run"
+            exit 1
+          fi
