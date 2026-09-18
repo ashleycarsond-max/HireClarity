@@ -284,7 +284,17 @@ const rows = (await store.listReportSnapshots()).filter((r) => r.period === FIX_
 check("re-saving a period replaces the row (still one row)", rows.length, 1);
 check("latest save wins", { gen: rows[0]?.generatedAt, x: (rows[0]?.payload as { x?: number })?.x }, { gen: "2026-01-02T00:00:00.000Z", x: 2 });
 
-// Deterministic generation: same inputs + same `now` -> identical snapshot
+// Deterministic generation: same inputs + same `now` -> identical snapshot.
+//
+// DELIBERATELY a TWO-RUN comparison, never a hardcoded fixture: the snapshot is
+// computed from the LIVE store, and the live registry moves constantly (postings
+// appear, are removed and relisted, description flags fill in). A fixture of
+// "today's totals" baked into the file goes stale within days and then fails for
+// a reason that has nothing to do with determinism — which is exactly what
+// happened before this note was added. Two runs with the same `now` must agree
+// byte-for-byte; the only way this can legitimately differ is a concurrent write
+// to the store between the two calls (the pipeline crons), which is a real
+// finding, not a flaky expectation.
 const t0 = Date.now();
 const snapA = await computeReportSnapshot(store, "2099-01", new Date("2026-08-14T09:00:00.000Z"));
 const snapB = await computeReportSnapshot(store, "2099-01", new Date("2026-08-14T09:00:00.000Z"));

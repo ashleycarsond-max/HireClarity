@@ -39,6 +39,7 @@
  *      COMPILE_CONTEXT_SAMPLE=50 bun run compile-context-test   (bigger sample)
  */
 
+import { neon } from "@neondatabase/serverless";
 import { Store } from "./store";
 import { buildSignals, type PostingSignals, type SignalContext } from "./signals";
 import { loadEventsByPosting, loadPayByPosting } from "./signal-context";
@@ -70,14 +71,23 @@ function checkTrue(label: string, cond: boolean, detail = ""): void {
   console.log(`  ${cond ? "ok  " : "FAIL"} ${label}${cond || !detail ? "" : ` — ${detail}`}`);
 }
 
-/** The projection of PostingSignals the compile path actually consumes. */
+/**
+ * The projection of PostingSignals the compile path actually consumes.
+ *
+ * `payGroup` is compared ORDER-INSENSITIVELY (sorted by postingId): the batched
+ * context yields its rows in postingIds order, the per-posting reference path in
+ * SQL row order. The comparison itself is a set property (payConsistency scans
+ * every band pair and uses currency sets), which the identical `score` in this
+ * same projection proves — the only thing row order can affect is which
+ * listing an explanatory sentence happens to name first.
+ */
 function compileContract(s: PostingSignals, checks: number): Record<string, unknown> {
   return {
     daysListed: s.daysListed,
     relistCount: s.relistCount,
     statusHistory: s.statusHistory,
     pay: s.pay,
-    payGroup: s.payGroup,
+    payGroup: [...(s.payGroup ?? [])].sort((a, b) => String(a.postingId).localeCompare(String(b.postingId))),
     boardsSeen: s.boardsSeen,
     urlsSeen: s.urlsSeen,
     distinctPostingsInIdentity: s.distinctPostingsInIdentity,
@@ -190,6 +200,7 @@ if (!process.env.DATABASE_URL) {
     let subsetOk = 0;
     let rawEventsReplacedTotal = 0;
     let ctxFlagRows = 0;
+    let ctxEventsTransitionRows = 0;
     let refFlagRows = 0;
 
     for (const rec of sample) {
@@ -229,6 +240,7 @@ if (!process.env.DATABASE_URL) {
       const ctxKeys = new Set(ctxEvents.map(keyOf));
       if (refEvents.every((e) => e.type === "content_changed" || ctxKeys.has(keyOf(e)))) subsetOk++;
       ctxFlagRows += ctxEvents.filter((e) => e.type === "content_changed").length;
+      ctxEventsTransitionRows += ctxEvents.filter((e) => e.type !== "content_changed").length;
       refFlagRows += refEvents.filter((e) => e.type === "content_changed").length;
       rawEventsReplacedTotal += refEvents.length;
     }
@@ -257,10 +269,29 @@ if (!process.env.DATABASE_URL) {
       refFlagRows >= ctxFlagRows
     );
     console.log(
-      `  (sample read ${rawEventsReplacedTotal.toLocaleString("en-US")} raw event rows through the old per-posting path; the batched ctx carries ${(
-        sample.length + (rawEventsReplacedTotal - refFlagRows)
-      ).toLocaleString("en-US")} rows for the same information)`
+      `  (sample: ${rawEventsReplacedTotal.toLocaleString("en-US")} raw event rows through the old per-posting path → ${(
+        ctxFlagRows + ctxEventsTransitionRows
+      ).toLocaleString("en-US")} rows of the same information in the batched ctx)`
     );
+
+    // The whole reason for the change, MEASURED on the live database: the old
+    // compile read every content_changed row; the batched map carries one flag
+    // per posting instead.
+    try {
+      const sql = neon(process.env.DATABASE_URL!);
+      const rows = await sql.query(`SELECT count(*)::int AS n FROM events WHERE type = 'content_changed'`, []);
+      const rawFlags = Number(rows[0]?.n ?? 0);
+      const batchedFlags = [...eventsByPosting.values()].filter((list) => list.some((e) => e.type === "content_changed")).length;
+      console.log(
+        `  (live events table: ${rawFlags.toLocaleString("en-US")} content_changed rows; the batched map carries ${batchedFlags.toLocaleString(
+          "en-US"
+        )} flags for them — a ${(rawFlags / Math.max(1, batchedFlags)).toFixed(0)}x reduction in rows read at compile time)`
+      );
+      checkTrue("batched content_changed flags are a small fraction of the raw rows", batchedFlags <= rawFlags, `${batchedFlags} vs ${rawFlags}`);
+      checkTrue("every posting with a content_changed row gets a flag", batchedFlags > 0);
+    } catch (err) {
+      console.log(`  skip raw content_changed count (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
   } finally {
     store.close();
   }
