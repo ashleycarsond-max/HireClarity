@@ -144,11 +144,22 @@ export async function companyDetail(store: Store, name: string): Promise<PublicC
     list.push(r);
     identityGroups.set(key, list);
   }
+  // Scale-safe batched events read (engine/signal-context.ts): the old
+  // allEvents() pulled the whole 390 MB events table in one query and blew
+  // Neon's 64 MB response cap, which took this page down with it.
+  // Scale-safe batched events read: the old allEvents() pulled the whole
+  // ~390 MB events table in one query and blew Neon's 64 MB response cap,
+  // which took this page down with it (see engine/signal-context.ts).
   const eventsByPosting = new Map<string, PostingEvent[]>();
-  for (const e of await store.allEvents()) {
+  for (const e of await store.transitionEventsAll()) {
     const list = eventsByPosting.get(e.postingId) ?? [];
     list.push(e);
     eventsByPosting.set(e.postingId, list);
+  }
+  for (const c of await store.contentChangedFirstAt()) {
+    const list = eventsByPosting.get(c.postingId) ?? [];
+    list.push({ postingId: c.postingId, identityKey: "", type: "content_changed", at: c.at, detail: null });
+    eventsByPosting.set(c.postingId, list);
   }
   const payByPosting = new Map<string, import("../../engine/types").PayInfo>();
   for (const p of await store.allPay()) payByPosting.set(p.postingId, p);

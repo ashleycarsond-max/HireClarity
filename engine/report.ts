@@ -30,7 +30,9 @@
 import { Store } from "./store";
 import { buildSignals, type SignalContext } from "./signals";
 import { scoreCore } from "./score";
-import { TREND_METRICS, computeTrends, computeTrendsFor, type DailySnapshot } from "./daily-stats";
+import { computeTrends, computeTrendsFor, type DailySnapshot } from "./daily-stats";
+import { TREND_METRICS } from "./trend-metrics";
+import { loadEventsByPosting, loadPayByPosting } from "./signal-context";
 import { FALLBACK_INDUSTRY } from "./company-industries";
 import type { PostingEvent, PostingRecord } from "./types";
 
@@ -321,14 +323,8 @@ export async function computeReportSnapshot(
     list.push(r);
     identityGroups.set(key, list);
   }
-  const eventsByPosting = new Map<string, PostingEvent[]>();
-  for (const e of await store.allEvents()) {
-    const list = eventsByPosting.get(e.postingId) ?? [];
-    list.push(e);
-    eventsByPosting.set(e.postingId, list);
-  }
-  const payByPosting = new Map<string, import("./types").PayInfo>();
-  for (const p of await store.allPay()) payByPosting.set(p.postingId, p);
+  const eventsByPosting = await loadEventsByPosting(store);
+  const payByPosting = await loadPayByPosting(store);
   const ctx: SignalContext = { identityGroups, eventsByPosting, payByPosting };
   const checkCounts = new Map((await store.checksByPosting()).map((c) => [c.postingId, c.count]));
 
@@ -355,17 +351,14 @@ export async function computeReportSnapshot(
   const named = all.filter((r) => r.company);
   const distinctCompanies = new Set(named.map((r) => r.company as string)).size;
 
-  // ── checks recorded in the period
-  const periodChecks = await store.checksInPeriod(start, end);
-  const checkedPostingIds = [...new Set(periodChecks.map((c) => c.postingId))];
-
-  const outcomeCounts = new Map<string, number>();
-  for (const c of periodChecks) {
-    outcomeCounts.set(c.observedStatus, (outcomeCounts.get(c.observedStatus) ?? 0) + 1);
-  }
-  const byOutcome: ReportCheckOutcome[] = [...outcomeCounts.entries()]
-    .map(([observedStatus, count]) => ({ observedStatus, count }))
-    .sort((a, b) => b.count - a.count);
+  // ── checks recorded in the period (aggregated in Postgres: a month of raw
+  //    check rows is ~700 MB and blew Neon's 64 MB single-response cap)
+  const periodStats = await store.checksInPeriodStats(start, end);
+  const checkedPostingIds = periodStats.postingIds;
+  const byOutcome: ReportCheckOutcome[] = periodStats.byOutcome.map((r) => ({
+    observedStatus: r.observedStatus,
+    count: r.count,
+  }));
 
   // ── score distribution: recompute the current score of each posting that was
   //    checked in the period (the checks table stores observations, not scores).
@@ -419,7 +412,7 @@ export async function computeReportSnapshot(
     },
     boards,
     checks: {
-      inPeriod: periodChecks.length,
+      inPeriod: periodStats.total,
       distinctPostings: checkedPostingIds.length,
       byOutcome,
       scoreBuckets,
