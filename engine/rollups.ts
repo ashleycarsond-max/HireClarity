@@ -246,6 +246,88 @@ export function archiveFromDaily(snap: DailySnapshot): ArchiveView {
   };
 }
 
+/* --------------------- archive gaps (NEVER backfilled) --------------------- */
+
+/**
+ * A hole in the daily archive: the space between two stored snapshot dates.
+ *
+ * DECISION (owner direction, 2026-09-18 handoff): the 2026-08-22 → 2026-09-17
+ * compile outage is NOT backfilled. Postings carry only their CURRENT state, so
+ * a missed day is not exactly reconstructible (per-day score buckets depend on
+ * pay rows, requirement-read flags and check counts as of that day) — per the
+ * never-fabricate rule the gap is SHOWN, never filled. These helpers find the
+ * holes in what we actually stored so the pages can say so out loud.
+ */
+export interface ArchiveGap {
+  /** last stored snapshot date BEFORE the gap */
+  lastBefore: string;
+  /** first stored snapshot date AFTER the gap — the compile that resumed */
+  resumedOn: string;
+  /** first UTC date with no snapshot */
+  outageStart: string;
+  /** last UTC date with no snapshot */
+  outageEnd: string;
+  /** how many UTC days have no snapshot */
+  missingDays: number;
+}
+
+/** "YYYY-MM-DD" + n days (UTC), or null when the input isn't a real date. */
+export function addDaysUtc(dateStr: string, days: number): string | null {
+  if (!parseDateStr(dateStr)) return null;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+}
+
+/** Whole UTC days from `a` to `b` (b - a); null when either date is invalid. */
+function daysBetweenUtc(a: string, b: string): number | null {
+  if (!parseDateStr(a) || !parseDateStr(b)) return null;
+  const ms = Date.parse(`${b}T00:00:00.000Z`) - Date.parse(`${a}T00:00:00.000Z`);
+  return Math.round(ms / 86400000);
+}
+
+/**
+ * Find the holes in a set of stored daily-snapshot dates (sorted, unique,
+ * invalid entries ignored). Only gaps BETWEEN two stored dates can be found —
+ * that is what makes them reportable: we know the compile ran again on
+ * `resumedOn`. A gap that is still open (no snapshot since) is not returned,
+ * because there is nothing after it to anchor "compile resumed".
+ *
+ * `minMissingDays` (default 1) lets a caller ignore one-off single missing days
+ * when it only wants outages worth calling out.
+ */
+export function findArchiveGaps(dates: string[], opts: { minMissingDays?: number } = {}): ArchiveGap[] {
+  const min = Math.max(1, opts.minMissingDays ?? 1);
+  const sorted = [...new Set(dates.filter((d) => parseDateStr(d)))].sort((a, b) => a.localeCompare(b));
+  const gaps: ArchiveGap[] = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const before = sorted[i - 1];
+    const after = sorted[i];
+    const missing = (daysBetweenUtc(before, after) ?? 0) - 1;
+    if (missing < min) continue;
+    const outageStart = addDaysUtc(before, 1);
+    const outageEnd = addDaysUtc(after, -1);
+    if (!outageStart || !outageEnd) continue;
+    gaps.push({ lastBefore: before, resumedOn: after, outageStart, outageEnd, missingDays: missing });
+  }
+  return gaps;
+}
+
+/**
+ * The honest one-line note for one gap, e.g.
+ * "no snapshot — daily compile outage 2026-08-22 → 2026-09-17, compile resumed
+ * 2026-09-18 (27 days of daily compiles missing)". Rendered on /reports and in
+ * the trends section, so a comparison that spans the hole is never presented
+ * without its context.
+ */
+export function gapNote(gap: ArchiveGap): string {
+  return (
+    `no snapshot — daily compile outage ${gap.outageStart} → ${gap.outageEnd}, ` +
+    `compile resumed ${gap.resumedOn} (${gap.missingDays} day${gap.missingDays === 1 ? "" : "s"} of daily compiles missing)`
+  );
+}
+
 /* ------------------------------ trend plumbing ----------------------------- */
 
 /** The structural surface the trend picks read — shared by ArchiveView and DailySnapshot. */
@@ -470,14 +552,21 @@ function trendNote(kind: PeriodKind, n: number, first: string | null, last: stri
  * the daily snapshots — the implicit day buckets; week/month/year read the
  * report_rollups table). Honest insufficient-history behavior: compare rows
  * are empty until the granularity has 2+ periods.
+ *
+ * `gaps` lists the holes in the stored daily archive (compile outages) so the
+ * trend sections can label a comparison that spans one instead of quietly
+ * showing a 28-day delta as if it were day-over-day. Gaps are SHOWN, never
+ * backfilled (see findArchiveGaps).
  */
 export async function buildTrendViews(store: Store): Promise<{
   day: GranularityTrendView;
   week: GranularityTrendView;
   month: GranularityTrendView;
   year: GranularityTrendView;
+  gaps: ArchiveGap[];
 }> {
   const dailyRows = await store.listDailySnapshots();
+  const gaps = findArchiveGaps(dailyRows.map((r) => (r.snapshot as DailySnapshot).date));
   const dayViews = dailyRows.map((r) => archiveFromDaily(r.snapshot as DailySnapshot));
   const dayView: GranularityTrendView = {
     granularity: "day",
@@ -501,7 +590,7 @@ export async function buildTrendViews(store: Store): Promise<{
       note: trendNote(type, views.length, views[0]?.firstDate ?? null, views[views.length - 1]?.lastDate ?? null),
     };
   }
-  return { day: dayView, week: out.week, month: out.month, year: out.year };
+  return { day: dayView, week: out.week, month: out.month, year: out.year, gaps };
 }
 
 /* ------------------------------ persistence ------------------------------- */

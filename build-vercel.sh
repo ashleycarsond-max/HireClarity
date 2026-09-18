@@ -46,16 +46,18 @@ JSON
 # env var (deploy-time `-e` is not enough — Vercel Cron reads it from the
 # project's env to attach the Authorization header).
 #
-# SCHEDULES (registry scale-up, owner direction 2026-08-15 — engine/registry-scale-up.md):
-#   sync        0,15,30,45 * * * *   4 invocations/hour, SYNC_TIME_BUDGET_MS-bounded
-#                                     chunked scrub → whole registry re-observed every
-#                                     ~1-2h at 89 companies, ~3-4h at 200, ~8h at 500,
-#                                     ~14h at 1,000 (politeness-throttle dominated).
-#   requirements 5,35 * * * *        description-coverage sweep on its own window.
-#   discover     45 1,7,13,19 * * *  4 verification slots/day (~40-70 candidates/slot).
+# SCHEDULES (2026-09-18 revision): Vercel Hobby accounts now REJECT any cron
+# schedule that fires more than once per day ("Hobby accounts are limited to
+# daily cron jobs" — deploy fails with HTTP 400), so only the two DAILY jobs
+# can live here:
 #   daily        30 2 * * *          snapshot compile.   report  0 9 * * *  monthly mail.
+# The sub-daily jobs (sync 4×/hour, requirements 2×/hour, discover 4×/day)
+# moved to GitHub Actions scheduled workflows (.github/workflows/) that call
+# the same /api/cron/* endpoints with `Authorization: Bearer $CRON_SECRET`
+# (repo secret). Do NOT add sub-daily schedules back to this array while the
+# Vercel account is on Hobby — every deploy will fail.
 cat > .vercel/output/config.json <<'JSON'
-{ "version": 3, "routes": [ { "handle": "filesystem" }, { "src": "/(.*)", "dest": "/render" } ], "crons": [ { "path": "/api/cron/sync", "schedule": "0,15,30,45 * * * *" }, { "path": "/api/cron/requirements", "schedule": "5,35 * * * *" }, { "path": "/api/cron/discover", "schedule": "45 1,7,13,19 * * *" }, { "path": "/api/cron/daily", "schedule": "30 2 * * *" }, { "path": "/api/cron/report", "schedule": "0 9 * * *" } ] }
+{ "version": 3, "routes": [ { "handle": "filesystem" }, { "src": "/(.*)", "dest": "/render" } ], "crons": [ { "path": "/api/cron/daily", "schedule": "30 2 * * *" }, { "path": "/api/cron/report", "schedule": "0 9 * * *" } ] }
 JSON
 
 echo "done -> .vercel/output ready for: bunx vercel deploy --prebuilt"
