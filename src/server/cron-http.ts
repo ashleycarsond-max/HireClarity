@@ -29,6 +29,7 @@ import { computeDailySnapshot, saveDailySnapshot, utcDateStr } from "../../engin
 import { upsertRollupsForDate } from "../../engine/rollups";
 import { sendReportToSignups } from "./report-email";
 import { runWatchlistAlertPass } from "./watch-alerts";
+import { withPipelineHeartbeat } from "./pipeline-alert";
 import { timingSafeEqual } from "node:crypto";
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
@@ -475,6 +476,15 @@ async function handleDiscoveryCron(request: Request): Promise<Response> {
  * gone and the handler below is deleted, so the path now falls through and
  * returns the site's 404. The shelved engine code (engine/company-report.ts,
  * src/server/company-report-email.ts) stays in the repo, unreferenced.
+ *
+ * HEARTBEAT + FAILURE ALERTS (2026-09-18): every job below runs through
+ * `withPipelineHeartbeat` (src/server/pipeline-alert.ts) — a success upserts
+ * `pipeline_<job>_last_ok`, a 5xx response or thrown error upserts
+ * `pipeline_<job>_last_error` and emails the owner (cooldown-limited). That is
+ * what turns a silent multi-day outage (the 2026-08-22 → 2026-09-17 compiles)
+ * into a visible one. Guard responses (401 unauthorized, 405 method) are NOT
+ * pipeline failures and are never alerted, so the wrapper sits OUTSIDE each
+ * handler but INSIDE the method gate.
  */
 export async function handleCronHttp(request: Request): Promise<Response | null> {
   const { pathname } = new URL(request.url);
@@ -482,31 +492,31 @@ export async function handleCronHttp(request: Request): Promise<Response | null>
     if (request.method !== "GET") {
       return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
     }
-    return handleSync(request);
+    return withPipelineHeartbeat("sync", Date.now(), () => handleSync(request));
   }
   if (pathname === "/api/cron/report" || pathname === "/api/cron/report/") {
     if (request.method !== "GET") {
       return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
     }
-    return handleReportCron(request);
+    return withPipelineHeartbeat("report", Date.now(), () => handleReportCron(request));
   }
   if (pathname === "/api/cron/daily" || pathname === "/api/cron/daily/") {
     if (request.method !== "GET") {
       return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
     }
-    return handleDailyCron(request);
+    return withPipelineHeartbeat("daily", Date.now(), () => handleDailyCron(request));
   }
   if (pathname === "/api/cron/discover" || pathname === "/api/cron/discover/") {
     if (request.method !== "GET") {
       return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
     }
-    return handleDiscoveryCron(request);
+    return withPipelineHeartbeat("discover", Date.now(), () => handleDiscoveryCron(request));
   }
   if (pathname === "/api/cron/requirements" || pathname === "/api/cron/requirements/") {
     if (request.method !== "GET") {
       return json({ ok: false, error: "method not allowed — cron sends GET" }, 405, { allow: "GET" });
     }
-    return handleRequirementsCron(request);
+    return withPipelineHeartbeat("requirements", Date.now(), () => handleRequirementsCron(request));
   }
   return null;
 }

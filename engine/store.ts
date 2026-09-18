@@ -1127,6 +1127,22 @@ export class Store {
   }
 
   /**
+   * Write a raw string to the sync_meta key-value table, OVERWRITING any
+   * existing value (upsert by key). `tryCreateMeta` is the claim guard and
+   * deliberately never overwrites; this is the counterpart used by the pipeline
+   * heartbeats (`pipeline_daily_last_ok`, `pipeline_sync_last_alert`, …), which
+   * must always hold the LATEST timestamp/error, not the first one ever written.
+   */
+  async setMeta(key: string, value: string): Promise<void> {
+    const sql = await this.ready();
+    await sql.query(
+      `INSERT INTO sync_meta (key, value, updated_at) VALUES ($1, $2, $3)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
+      [key, value, new Date().toISOString()]
+    );
+  }
+
+  /**
    * Atomically claim a sync_meta key (INSERT ... ON CONFLICT DO NOTHING).
    * Returns true only when THIS call created the key — the atomic "happens
    * once per period" guard the monthly report cron uses to make sure a new
