@@ -10,6 +10,7 @@ import {
   archiveFromDaily,
   archiveSummaryLine,
   buildTrendViews,
+  gapNote,
   periodKind,
   periodLabelFor,
   type ArchiveView,
@@ -738,6 +739,21 @@ function ReportPage({ snapshot: s, trendViews }: { snapshot: ReportSnapshot; tre
                   a warning, and the report never scores either.
                 </p>
               )}
+              {(() => {
+                const prev = d.dailyTrendDates?.previous;
+                const latest = d.dailyTrendDates?.latest;
+                const gap =
+                  prev && latest
+                    ? (trendViews?.gaps ?? []).find((g) => g.lastBefore === prev && g.resumedOn === latest)
+                    : undefined;
+                return gap ? (
+                  <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
+                    Heads up: these two compiles are not one day apart — {gapNote(gap)}. Every row above is the
+                    change across that whole stretch, not a day-over-day change, and we do not reconstruct the
+                    missing days (a posting carries only its current state).
+                  </p>
+                ) : null;
+              })()}
             </>
           )}
 
@@ -858,6 +874,31 @@ function TrendsAcrossTime({ trendViews }: { trendViews: TrendViews }) {
         n/a until it has enough history: <strong>day needs 2+ days, week needs 2+ weeks, month needs 2+ months,
         year needs 2+ years</strong>.
       </p>
+
+      {trendViews.gaps.length > 0 ? (
+        <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm leading-relaxed text-amber-900">
+          <p className="font-semibold">
+            Some daily compiles are missing — the archive says so instead of filling them in
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 font-mono text-xs">
+            {trendViews.gaps.map((g) => (
+              <li key={`${g.outageStart}-${g.resumedOn}`}>{gapNote(g)}</li>
+            ))}
+          </ul>
+          <p className="mt-2">
+            {trendViews.day.previousPeriod && trendViews.day.latestPeriod ? (
+              <>
+                The most recent day comparison is <strong>{trendViews.day.previousPeriod} →{" "}
+                {trendViews.day.latestPeriod}</strong>: those two dates straddle the gap, so each day-over-day row is
+                the change across that whole stretch, not a single day.{" "}
+              </>
+            ) : null}
+            We never reconstruct a day we did not compile (a posting carries only its current state), so the
+            week/month/year rollups below cover only the days that were actually compiled — each rollup states how
+            many daily snapshots it used.
+          </p>
+        </div>
+      ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Trend granularity">
         {GRANULARITIES.map((g) => (

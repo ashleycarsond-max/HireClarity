@@ -8,6 +8,8 @@ import { Store } from "../../../engine/store";
 import {
   archiveFromDaily,
   archiveSummaryLine,
+  findArchiveGaps,
+  gapNote,
   periodLabelFor,
   type ArchiveView,
 } from "../../../engine/rollups";
@@ -167,6 +169,9 @@ function ArchiveCard({ href, title, sub, meta }: { href: string; title: string; 
 function ReportsIndexPage() {
   const data = Route.useLoaderData();
   const totalArchives = data.days.length + data.weeks.length + data.years.length;
+  // Holes in the daily archive (compile outages). Shown, never backfilled — the
+  // days we did not compile are not reconstructible (see engine/rollups.ts).
+  const gaps = findArchiveGaps(data.days.map((d) => d.period));
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -214,6 +219,25 @@ function ReportsIndexPage() {
             </li>
           </ul>
         </div>
+
+        {/* Compile-outage gaps — shown, never backfilled */}
+        {gaps.length > 0 ? (
+          <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-6 text-sm leading-relaxed text-amber-900">
+            <h2 className="text-base font-bold">Missing days in the daily archive — we label them, we don't fill them</h2>
+            <ul className="mt-3 list-disc space-y-1 pl-5 font-mono text-xs">
+              {gaps.map((g) => (
+                <li key={`${g.outageStart}-${g.resumedOn}`}>{gapNote(g)}</li>
+              ))}
+            </ul>
+            <p className="mt-3">
+              On those days the daily compile did not run, so there is no snapshot for them and none is invented
+              afterwards: a posting carries only its <em>current</em> state, so a missed day cannot be
+              reconstructed honestly. Trend rows whose two dates straddle a gap compare those two dates directly —
+              that is the change across the whole stretch, not a one-day change — and every archived period we do
+              have below is exactly what was compiled on its own date.
+            </p>
+          </div>
+        ) : null}
 
         {/* Monthly reports */}
         <h2 className="mt-10 text-xl font-bold tracking-tight text-slate-900">Monthly reports</h2>
